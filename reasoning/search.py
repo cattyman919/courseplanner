@@ -112,9 +112,17 @@ def _frontier(algorithm: str) -> tuple[Callable, Callable, Callable]:
             lambda: heapq.heappop(heap)[2], lambda: len(heap))
 
 
+Observer = Callable[[str, dict], None]
+
+
 def run_plan(profile: StudentProfile, catalog: dict[str, Course], algorithm: str,
-             max_credits: int) -> PlanResult:
-    """Search for a term-by-term plan that reaches the profile's goal."""
+             max_credits: int, observer: Observer | None = None) -> PlanResult:
+    """Search for a term-by-term plan that reaches the profile's goal.
+
+    If ``observer`` is given it is called as ``observer(kind, data)`` for every search
+    event (start, expand, push, duplicate, worse, stale, limit, goal, exhausted); see
+    ``reasoning.trace``. Each search node gets an integer id; the start node is 0.
+    """
     if algorithm not in ALGORITHMS:
         raise ValueError(f"unknown algorithm {algorithm!r}; expected one of {ALGORITHMS}")
     started = time.perf_counter()
@@ -124,20 +132,30 @@ def run_plan(profile: StudentProfile, catalog: dict[str, Course], algorithm: str
     parent: dict[StateKey, tuple[StateKey, Combo] | None] = {
         state_key(start, profile.start_term): None}
     closed: set[StateKey] = set()
+    node_ids = iter(range(1 << 62))
+
     def h(s: PlanState) -> float:
         return heuristic(s, profile, catalog, max_credits) if algorithm == "astar" else 0.0
 
-    push(h(start), (0.0, start))
+    def notify(kind: str, **data: object) -> None:
+        if observer is not None:
+            observer(kind, {**data, "frontier": size(), "closed": len(closed)})
+
+    root = next(node_ids)
+    push(h(start), (0.0, start, root))
+    notify("start", node=root, state=start, g=0.0, h=h(start))
     expanded = generated = 0
 
     while size():
-        cost, state = pop()
+        cost, state, node = pop()
         key = state_key(state, profile.start_term)
         if key in closed:
+            notify("stale", node=node, state=state, g=cost)
             continue
         closed.add(key)
         if goal_reached(state, profile, catalog):
             semesters = _path(parent, key)
+            notify("goal", node=node, state=state, g=cost)
             return PlanResult(
                 semesters=[list(c) for c in semesters],
                 log=explain_plan(semesters, profile, catalog),
@@ -145,18 +163,32 @@ def run_plan(profile: StudentProfile, catalog: dict[str, Course], algorithm: str
                 algorithm=algorithm,
             )
         if state.term_index >= MAX_TERMS:
+            notify("limit", node=node, state=state, g=cost)
             continue
         expanded += 1
+        if observer is not None:
+            notify("expand", node=node, state=state, g=cost, h=h(state),
+                   candidates=[c.code for c in candidates(state, profile, catalog)])
         for combo, nxt in successors(state, profile, catalog, max_credits):
             generated += 1
+            child = next(node_ids)
             nkey = state_key(nxt, profile.start_term)
             ncost = cost + edge_cost(algorithm, combo)
-            if nkey in closed or ncost >= best.get(nkey, float("inf")):
+            info = {"node": child, "parent": node, "combo": [c.code for c in combo],
+                    "state": nxt, "g": ncost}
+            if nkey in closed:
+                notify("duplicate", **info)
+                continue
+            if ncost >= best.get(nkey, float("inf")):
+                notify("worse", **info, best=best[nkey])
                 continue
             best[nkey] = ncost
             parent[nkey] = (key, combo)
-            push(ncost + h(nxt), (ncost, nxt))
+            child_h = h(nxt)
+            push(ncost + child_h, (ncost, nxt, child))
+            notify("push", **info, h=child_h)
 
+    notify("exhausted")
     log = [r for r in explain_plan([()], profile, catalog) if r.rule == "PRUNED"]
     log.append(RuleResult("PLAN", False, "INFEASIBLE",
                           f"no plan within {MAX_TERMS} terms at {max_credits} credits/term"))
