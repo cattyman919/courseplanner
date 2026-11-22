@@ -111,13 +111,14 @@ def load_saved_plan(conn: sqlite3.Connection, plan_id: int) -> dict:
     row = conn.execute("SELECT * FROM saved_plans WHERE id = ?", (plan_id,)).fetchone()
     if row is None:
         raise KeyError(f"no saved plan with id {plan_id}")
-    payload = json.loads(row["plan_json"])
+    meta = dict(row)
+    payload = json.loads(meta.pop("plan_json"))
     log = conn.execute(
         "SELECT seq, rule, subject, ok, detail FROM rule_log WHERE plan_id = ? ORDER BY seq",
         (plan_id,),
     ).fetchall()
     return {
-        "meta": {k: row[k] for k in row.keys() if k != "plan_json"} | payload,
+        "meta": meta | payload,
         "semesters": payload["semesters"],
         "log": [dict(r) for r in log],
     }
