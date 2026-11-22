@@ -9,11 +9,18 @@ from domain.models import Course, PlanState, RuleResult, StudentProfile
 
 TERMS = ("fall", "spring")
 REQUIRED_CATEGORIES = ("math", "core")
+FIRST_FALL_YEAR = 2026
 
 
 def term_of(start_term: str, term_index: int) -> str:
     """Return the term name ("fall"/"spring") for a 0-based term index."""
     return TERMS[(TERMS.index(start_term) + term_index) % 2]
+
+
+def term_label(start_term: str, term_index: int) -> str:
+    """Human label such as "Fall 2026" or "Spring 2027"; the year increments each spring."""
+    half = TERMS.index(start_term) + term_index
+    return f"{term_of(start_term, term_index).title()} {FIRST_FALL_YEAR + (half + 1) // 2}"
 
 
 def check_eligibility(course: Course, state: PlanState, start_term: str) -> RuleResult:

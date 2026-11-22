@@ -67,7 +67,20 @@ term counts the app actually produces (expected 3–5 terms, not the placeholder
 - **Corequisites:** none in the catalog; the table and field exist but stay empty.
 - **Python:** `requires-python = ">=3.11"`, pinned locally to 3.14 via `.python-version`.
 
-## D7. Git history beyond the 11 milestone commits (§13.3)
+## D7. Search details not fixed by the spec (§8)
+
+- **Wait successor:** if no course can be taken this term (e.g. only fall-only courses
+  remain in spring), the only successor is the same completed set one term later. Without
+  it such states would be dead ends. Waiting is never offered when a bundle exists, since
+  taking courses never delays the goal.
+- **Goal test on pop** for every algorithm, so UCS and A* return least-cost plans.
+- **Test direction:** the spec's "BFS plan length ≥ A* plan length" is inverted — BFS
+  minimises terms, so it is never longer. Tests assert BFS length ≤ UCS (and later A*)
+  length.
+- **Term labels** live in `rules.term_label` because the search's log needs them before
+  `explain.py` exists.
+
+## D8. Git history beyond the 11 milestone commits (§13.3)
 
 Additional commits, all new (never amended): a Makefile (user request), a ruff lint fix,
 pinning ruff as a dev dependency, and these docs. The spec's §17 "chore: add dependencies"

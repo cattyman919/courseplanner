@@ -79,11 +79,40 @@ The app loads the catalog and profiles once and caches them.
 sorted by code, DFS take-before-skip, prune on cap/slot clash, emit maximal bundles only,
 below-minimum fallback, cap 64 with a `truncated` flag. See [decisions.md](decisions.md) D3.
 
-### Search (`reasoning/search.py`) — planned
+### Search (`reasoning/search.py`)
 
-- State key: `(completed, current_term)`.
-- Successors: eligible ∧ relevant courses → `valid_combos` → next state per bundle.
-- Costs: BFS 1/term; UCS and A* `1 + 0.05·credits`/term (D1).
-- Heuristic: `max(ceil(remaining_required_credits / max_credits), longest_remaining_chain)`
-  — both lower bounds on terms left, and each term costs ≥ 1, so admissible.
-- Limit: 16 terms, else `INFEASIBLE`.
+| Piece | Behaviour |
+|---|---|
+| `state_key` | `(completed, current_term)` — the term name, not just index parity |
+| `candidates` | courses that pass `check_relevance` and `check_eligibility`, sorted by code |
+| `successors` | one next state per bundle from `valid_combos`; if no bundle exists, a single "wait a term" successor |
+| `edge_cost` | BFS `1`; UCS (and A*) `1 + 0.05·credits` (D1) |
+| `run_plan` | one best-first driver: FIFO queue for BFS, heap with insertion counter for UCS (deterministic ties); closed set on state key; goal test on pop |
+| `explain_plan` | replays the chosen plan and builds the rule log (D2) |
+
+- **Limit:** states at term 16 are not expanded; exhausting the frontier returns
+  `semesters=[]`, the start-state prunes, and an `INFEASIBLE` entry.
+- **Stats:** `expanded` (states whose successors were generated), `generated` (successor
+  edges), `ms` (`time.perf_counter`), `cost` (path cost of the returned plan).
+- **A\*** (milestone 7, planned): heuristic
+  `max(ceil(remaining_required_credits / max_credits), longest_remaining_chain)` — both
+  lower bounds on terms left, and each term costs ≥ 1, so it is admissible.
+
+### Rule log format
+
+Per plan term, in order:
+1. `PRUNED` for courses not needed (each course/reason logged once, the first term it applies).
+2. `PREREQ` / `OFFERING` / `OK` for every needed, not-yet-completed course, detail prefixed
+   with the term label (e.g. `Spring 2027: missing prerequisite(s): CS201, MATH210`).
+3. `CONFLICT` for each pair of eligible courses sharing a slot (`cannot take both`).
+4. One `OK` row whose subject is the term label, listing the bundle taken and its credits.
+
+### Measured results (max 18 credits, before A*)
+
+| Profile | Terms | BFS expanded | UCS expanded | UCS cost |
+|---|---|---|---|---|
+| On-track | 3 | 14 | 15 | 4.45 |
+| Transfer | 4 | 8 | 8 | 5.95 |
+| Heavy electives | 2 | 6 | 6 | 3.05 |
+
+All runs take under 3 ms.
