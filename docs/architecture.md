@@ -94,9 +94,23 @@ below-minimum fallback, cap 64 with a `truncated` flag. See [decisions.md](decis
   `semesters=[]`, the start-state prunes, and an `INFEASIBLE` entry.
 - **Stats:** `expanded` (states whose successors were generated), `generated` (successor
   edges), `ms` (`time.perf_counter`), `cost` (path cost of the returned plan).
-- **A\*** (milestone 7, planned): heuristic
-  `max(ceil(remaining_required_credits / max_credits), longest_remaining_chain)` — both
-  lower bounds on terms left, and each term costs ≥ 1, so it is admissible.
+
+### A\* heuristic
+
+```text
+remaining     = required_courses_for(profile) - completed
+elective_need = max(0, electives_required - elective_credits(completed))
+credit_need   = credits(remaining) + elective_need
+h = max(ceil(credit_need / max_credits), longest_prereq_chain(remaining)) + 0.05 · credit_need
+```
+
+- **Admissible:** at least `max(...)` terms remain (credits per term are capped, and each
+  link of an open prerequisite chain needs its own term). Each term costs ≥ 1, and each
+  still-needed credit is charged 0.05 exactly once when taken, so `h` ≤ the true remaining cost.
+- **Consistent:** one term lowers each bound by at most 1 and `credit_need` by at most the
+  credits taken `c`, so `h(n) − h(n') ≤ 1 + 0.05·c`, the edge cost. The closed set therefore
+  never discards a cheaper path.
+- `h = 0` at any goal state.
 
 ### Rule log format
 
@@ -107,12 +121,15 @@ Per plan term, in order:
 3. `CONFLICT` for each pair of eligible courses sharing a slot (`cannot take both`).
 4. One `OK` row whose subject is the term label, listing the bundle taken and its credits.
 
-### Measured results (max 18 credits, before A*)
+### Measured results
 
-| Profile | Terms | BFS expanded | UCS expanded | UCS cost |
-|---|---|---|---|---|
-| On-track | 3 | 14 | 15 | 4.45 |
-| Transfer | 4 | 8 | 8 | 5.95 |
-| Heavy electives | 2 | 6 | 6 | 3.05 |
+States expanded (A\* cost equals UCS cost in every case):
 
-All runs take under 3 ms.
+| Profile | Terms | Cost | 18 cr: BFS / UCS / A\* | 15 cr: BFS / UCS / A\* | 12 cr: BFS / UCS / A\* |
+|---|---|---|---|---|---|
+| On-track | 3 | 4.45 | 14 / 15 / **4** | 28 / 33 / **12** | 58 / 69 / **26** |
+| Transfer | 4 | 5.95 | 8 / 8 / **4** | 8 / 8 / **4** | 24 / 29 / **9** |
+| Heavy electives | 2 | 3.05 | 6 / 6 / **2** | 13 / 17 / **8** | 17 / 22 / **9** |
+
+Every run takes under 4 ms. Lowering the cap does not lengthen any plan; it enlarges the
+search, which is where A\*'s advantage shows most.

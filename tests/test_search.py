@@ -9,11 +9,19 @@ from domain.catalog import CATALOG
 from domain.models import PlanState, StudentProfile
 from domain.profiles import PROFILES
 from reasoning.rules import check_eligibility, check_schedule, goal_reached, term_label
-from reasoning.search import MAX_TERMS, run_plan, state_key
+from reasoning.search import (
+    MAX_TERMS,
+    edge_cost,
+    heuristic,
+    longest_prereq_chain,
+    run_plan,
+    state_key,
+)
 
 CAT = {c.code: c for c in CATALOG}
 PROF = {p.name: p for p in PROFILES}
-ALGOS = ("bfs", "ucs")
+ALGOS = ("bfs", "ucs", "astar")
+CAPS = (12, 15, 18)
 SCENARIOS = [(p.name, a) for p in PROFILES for a in ALGOS]
 
 
@@ -98,3 +106,51 @@ def test_empty_catalog_does_not_crash():
 def test_unknown_algorithm_rejected():
     with pytest.raises(ValueError):
         run_plan(PROF["On-track"], CAT, "dfs", 18)
+
+
+@pytest.mark.parametrize("name", PROF)
+@pytest.mark.parametrize("cap", CAPS)
+def test_astar_cost_equals_ucs_cost(name, cap):
+    ucs = run_plan(PROF[name], CAT, "ucs", cap)
+    astar = run_plan(PROF[name], CAT, "astar", cap)
+    assert astar.stats["cost"] == pytest.approx(ucs.stats["cost"])
+    assert astar.stats["expanded"] <= ucs.stats["expanded"]
+
+
+@pytest.mark.parametrize("name", PROF)
+def test_astar_expands_fewer_than_bfs_and_ucs(name):
+    stats = {a: run_plan(PROF[name], CAT, a, 18).stats["expanded"] for a in ALGOS}
+    assert stats["astar"] < stats["ucs"] and stats["astar"] < stats["bfs"]
+
+
+@pytest.mark.parametrize("name", PROF)
+@pytest.mark.parametrize("cap", CAPS)
+def test_bfs_never_longer_than_astar(name, cap):
+    bfs = run_plan(PROF[name], CAT, "bfs", cap)
+    astar = run_plan(PROF[name], CAT, "astar", cap)
+    assert len(bfs.semesters) <= len(astar.semesters)
+
+
+@pytest.mark.parametrize("name", PROF)
+@pytest.mark.parametrize("cap", CAPS)
+def test_heuristic_admissible_and_consistent_along_plan(name, cap):
+    p = PROF[name]
+    plan = run_plan(p, CAT, "ucs", cap).semesters
+    states = [PlanState(p.completed, 0)]
+    for term in plan:
+        last = states[-1]
+        states.append(PlanState(last.completed | {c.code for c in term}, last.term_index + 1))
+    costs = [edge_cost("ucs", tuple(t)) for t in plan]
+    for i, s in enumerate(states):
+        h = heuristic(s, p, CAT, cap)
+        assert h <= sum(costs[i:]) + 1e-9, f"overestimates at term {i}"
+        if i < len(plan):
+            assert h <= costs[i] + heuristic(states[i + 1], p, CAT, cap) + 1e-9
+    assert heuristic(states[-1], p, CAT, cap) == 0
+
+
+def test_longest_prereq_chain():
+    remaining = frozenset({"AI401", "CS301", "AI320"})
+    assert longest_prereq_chain(remaining, frozenset({"CS101", "MATH101"}), CAT) == 4
+    assert longest_prereq_chain(remaining, frozenset({"CS101", "CS201", "MATH210"}), CAT) == 3
+    assert longest_prereq_chain(frozenset(), frozenset(), CAT) == 0

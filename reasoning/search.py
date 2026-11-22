@@ -1,4 +1,4 @@
-"""State-space search over PlanState: BFS and UCS share one best-first driver.
+"""State-space search over PlanState: BFS, UCS, and A* share one best-first driver.
 
 Each edge is one term. A successor applies one bundle from ``valid_combos`` to the courses
 that are both eligible (PREREQ, OFFERING) and relevant (not PRUNED). If nothing can be
@@ -9,6 +9,7 @@ import heapq
 import time
 from collections import deque
 from collections.abc import Callable, Iterator
+from math import ceil
 
 from domain.models import Course, PlanResult, PlanState, RuleResult, StudentProfile
 from reasoning.combos import valid_combos
@@ -18,12 +19,14 @@ from reasoning.rules import (
     check_schedule,
     elective_credits,
     goal_reached,
+    required_courses_for,
     term_label,
     term_of,
 )
 
 MAX_TERMS = 16
-ALGORITHMS = ("bfs", "ucs")
+ALGORITHMS = ("bfs", "ucs", "astar")
+CREDIT_WEIGHT = 0.05
 
 StateKey = tuple[frozenset[str], str]
 Combo = tuple[Course, ...]
@@ -58,10 +61,45 @@ def successors(state: PlanState, profile: StudentProfile, catalog: dict[str, Cou
 
 
 def edge_cost(algorithm: str, combo: Combo) -> float:
-    """BFS counts terms; UCS (and A*) charge 1 + 0.05 per credit for each term."""
+    """BFS counts terms; UCS and A* charge 1 + 0.05 per credit for each term."""
     if algorithm == "bfs":
         return 1.0
-    return 1.0 + 0.05 * sum(c.credits for c in combo)
+    return 1.0 + CREDIT_WEIGHT * sum(c.credits for c in combo)
+
+
+def longest_prereq_chain(remaining: frozenset[str], completed: frozenset[str],
+                         catalog: dict[str, Course]) -> int:
+    """Length of the longest chain of not-yet-completed prerequisites among `remaining`.
+
+    Each link needs its own term, so this is a lower bound on the terms still required.
+    """
+    memo: dict[str, int] = {}
+
+    def depth(code: str) -> int:
+        if code not in memo:
+            open_prereqs = [p for p in catalog[code].prereqs
+                            if p in catalog and p not in completed]
+            memo[code] = 1 + max((depth(p) for p in open_prereqs), default=0)
+        return memo[code]
+
+    return max((depth(c) for c in sorted(remaining) if c in catalog), default=0)
+
+
+def heuristic(state: PlanState, profile: StudentProfile, catalog: dict[str, Course],
+              max_credits: int) -> float:
+    """Admissible, consistent estimate of the remaining `1 + 0.05·credits` cost.
+
+    Terms left ≥ max(credit bound, prerequisite-depth bound), and each term costs ≥ 1.
+    Every remaining required credit, and every missing elective credit, is charged 0.05
+    exactly once, so the estimate never exceeds the true remaining cost.
+    """
+    remaining = required_courses_for(profile, catalog) - state.completed
+    elective_need = max(0, profile.elective_credits_required
+                        - elective_credits(state.completed, catalog))
+    credit_need = sum(catalog[c].credits for c in remaining) + elective_need
+    credit_bound = ceil(credit_need / max_credits)
+    depth_bound = longest_prereq_chain(remaining, state.completed, catalog)
+    return max(credit_bound, depth_bound) + CREDIT_WEIGHT * credit_need
 
 
 def _frontier(algorithm: str) -> tuple[Callable, Callable, Callable]:
@@ -122,7 +160,10 @@ def run_plan(profile: StudentProfile, catalog: dict[str, Course], algorithm: str
     parent: dict[StateKey, tuple[StateKey, Combo] | None] = {
         state_key(start, profile.start_term): None}
     closed: set[StateKey] = set()
-    push(0.0, (0.0, start))
+    def h(s: PlanState) -> float:
+        return heuristic(s, profile, catalog, max_credits) if algorithm == "astar" else 0.0
+
+    push(h(start), (0.0, start))
     expanded = generated = 0
 
     while size():
@@ -150,7 +191,7 @@ def run_plan(profile: StudentProfile, catalog: dict[str, Course], algorithm: str
                 continue
             best[nkey] = ncost
             parent[nkey] = (key, combo)
-            push(ncost, (ncost, nxt))
+            push(ncost + h(nxt), (ncost, nxt))
 
     log = [r for r in explain_plan([()], profile, catalog) if r.rule == "PRUNED"]
     log.append(RuleResult("PLAN", False, "INFEASIBLE",

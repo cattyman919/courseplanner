@@ -15,6 +15,10 @@ be expected.
 BFS keeps unit cost per term. The A* == UCS test is then meaningful, and the comparison
 table shows A* reaching the same cost with fewer expansions.
 
+**Heuristic:** the spec's `max(credit_bound, depth_bound)` is kept and extended with
+`+ 0.05 · credit_need`, and `credit_need` includes missing elective credits. Both additions
+keep it admissible and consistent (see architecture.md) while matching the shared cost model.
+
 ## D2. Rule log records the final plan only (§9, §10 Tab 2)
 
 **Problem:** logging every eligibility check for every expanded state produces thousands of
