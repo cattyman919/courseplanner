@@ -10,6 +10,7 @@ from domain.models import Course, PlanState, RuleResult, StudentProfile
 TERMS = ("fall", "spring")
 REQUIRED_CATEGORIES = ("math", "core")
 FIRST_FALL_YEAR = 2026
+MISSING_PREFIX = "missing prerequisite(s): "
 
 
 def term_of(start_term: str, term_index: int) -> str:
@@ -28,7 +29,7 @@ def check_eligibility(course: Course, state: PlanState, start_term: str) -> Rule
     missing = [p for p in course.prereqs if p not in state.completed]
     if missing:
         return RuleResult(course.code, False, "PREREQ",
-                          f"missing prerequisite(s): {', '.join(missing)}")
+                          f"{MISSING_PREFIX}{', '.join(missing)}")
     term = term_of(start_term, state.term_index)
     if term not in course.offered:
         return RuleResult(course.code, False, "OFFERING", f"not offered in {term}")

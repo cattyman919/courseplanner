@@ -12,7 +12,7 @@
 | — | Project docs | done | `docs: add project docs for decisions, catalog, and architecture` |
 | 6 | BFS + UCS planners + tests | done | `feat(search): add bfs and ucs planners` |
 | 7 | A* + heuristic + A* == UCS test | done | `feat(search): add a* with admissible heuristic` |
-| 8 | Rule-log summariser | next | `feat(explain): add rule-log summarizer` |
-| 9 | Streamlit UI (plans render) | todo | `feat(ui): wire planner into streamlit` |
+| 8 | Rule-log summariser | done | `feat(explain): add rule-log summarizer` |
+| 9 | Streamlit UI (plans render) | next | `feat(ui): wire planner into streamlit` |
 | 10 | Saved-plans tab | todo | `feat(ui): add saved plan persistence` |
 | 11 | README, demo script | todo | `docs: add readme, demo script, and architecture notes` |

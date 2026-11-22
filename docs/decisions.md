@@ -62,8 +62,15 @@ term counts the app actually produces (expected 3–5 terms, not the placeholder
 
 - **Term labels:** first term is the profile's `start_term` in 2026 (Fall 2026) or 2027
   (Spring 2027); the year increments each fall.
-- **"Inserted for missing prereq" badge:** shown on any planned course that appeared as a
-  missing prerequisite in an earlier `PREREQ` entry.
+- **"Inserted for missing prereq" badge:** shown on planned *lower-division* courses
+  (number < 300) that the log names as a missing prerequisite. Flagging every missing
+  prerequisite would mark nearly every chained course even for On-track (CS301, AI320, …);
+  the narrower rule marks exactly Transfer's gaps (CS201, CS210, MATH210).
+- **"Top-3 pruned courses" (§9):** since each `PRUNED` reason is logged once (D2), the
+  summary ranks courses by how often they were held back by `PRUNED`, `PREREQ`, or
+  `OFFERING`, ties broken by code.
+- **Extra test file:** `tests/test_explain.py`, beyond the four listed in §3.
+- **Line length:** ruff's default rules skip E501, so it is enabled explicitly.
 - **DB location:** `courseplanner.db` is anchored to the project root, not the launch
   directory. `get_connection()` / `init_db()` take an optional path so tests use `tmp_path`.
 - **Track override:** choosing another track in the sidebar replans against that track's

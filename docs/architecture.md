@@ -17,7 +17,7 @@ courseplanner/
     rules.py             production rules -> RuleResult
     combos.py            pruned DFS bundle generator
     search.py            BFS / UCS / A*                 [milestones 6-7]
-    explain.py           log summariser                 [milestone 8]
+    explain.py           rule-log builder + summariser
   tests/                 pytest, one file per layer
   docs/                  these notes
 ```
@@ -88,7 +88,7 @@ below-minimum fallback, cap 64 with a `truncated` flag. See [decisions.md](decis
 | `successors` | one next state per bundle from `valid_combos`; if no bundle exists, a single "wait a term" successor |
 | `edge_cost` | BFS `1`; UCS (and A*) `1 + 0.05·credits` (D1) |
 | `run_plan` | one best-first driver: FIFO queue for BFS, heap with insertion counter for UCS (deterministic ties); closed set on state key; goal test on pop |
-| `explain_plan` | replays the chosen plan and builds the rule log (D2) |
+| `explain_plan` | lives in `explain.py`; replays the chosen plan and builds the rule log (D2) |
 
 - **Limit:** states at term 16 are not expanded; exhausting the frontier returns
   `semesters=[]`, the start-state prunes, and an `INFEASIBLE` entry.
@@ -111,6 +111,17 @@ h = max(ceil(credit_need / max_credits), longest_prereq_chain(remaining)) + 0.05
   credits taken `c`, so `h(n) − h(n') ≤ 1 + 0.05·c`, the edge cost. The closed set therefore
   never discards a cheaper path.
 - `h = 0` at any goal state.
+
+### Explanation (`reasoning/explain.py`)
+
+| Function | Purpose |
+|---|---|
+| `explain_plan` | builds the chronological rule log for a plan (format below) |
+| `combo_label` | `"Fall 2026: CS301, CS310, MATH301"` |
+| `missing_prereqs` | course codes named in any `PREREQ` detail |
+| `inserted_prereqs` | planned catch-up courses for the red UI badge (D6) |
+| `top_pruned` | courses held back most often (`PRUNED`, `PREREQ`, `OFFERING`) |
+| `summarize` | markdown: terms, credits, algorithm, cost, effort, top-3 held-back courses |
 
 ### Rule log format
 

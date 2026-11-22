@@ -13,14 +13,13 @@ from math import ceil
 
 from domain.models import Course, PlanResult, PlanState, RuleResult, StudentProfile
 from reasoning.combos import valid_combos
+from reasoning.explain import explain_plan
 from reasoning.rules import (
     check_eligibility,
     check_relevance,
-    check_schedule,
     elective_credits,
     goal_reached,
     required_courses_for,
-    term_label,
     term_of,
 )
 
@@ -111,41 +110,6 @@ def _frontier(algorithm: str) -> tuple[Callable, Callable, Callable]:
     counter = iter(range(1 << 62))
     return (lambda prio, item: heapq.heappush(heap, (prio, next(counter), item)),
             lambda: heapq.heappop(heap)[2], lambda: len(heap))
-
-
-def explain_plan(semesters: list[Combo], profile: StudentProfile,
-                 catalog: dict[str, Course]) -> list[RuleResult]:
-    """Replay the chosen plan term by term and record every rule that fires.
-
-    Each course's PRUNED reason is logged once (first term it applies), to keep it readable.
-    """
-    log: list[RuleResult] = []
-    seen_prunes: set[tuple[str, str]] = set()
-    state = PlanState(profile.completed, 0)
-    for combo in semesters:
-        label = term_label(profile.start_term, state.term_index)
-        eligible: list[Course] = []
-        for code, course in sorted(catalog.items()):
-            if code in state.completed:
-                continue
-            relevance = check_relevance(course, state, profile, catalog)
-            if not relevance.ok:
-                if (code, relevance.detail) not in seen_prunes:
-                    seen_prunes.add((code, relevance.detail))
-                    log.append(relevance)
-                continue
-            result = check_eligibility(course, state, profile.start_term)
-            log.append(RuleResult(code, result.ok, result.rule, f"{label}: {result.detail}"))
-            if result.ok:
-                eligible.append(course)
-        for clash in check_schedule(tuple(eligible), 10**6):
-            log.append(RuleResult(clash.subject, False, clash.rule,
-                                  f"{label}: {clash.detail}; cannot take both"))
-        taken = ", ".join(c.code for c in combo) or "(no eligible courses; wait)"
-        credits = sum(c.credits for c in combo)
-        log.append(RuleResult(label, True, "OK", f"{label}: {taken} ({credits} cr)"))
-        state = PlanState(state.completed | {c.code for c in combo}, state.term_index + 1)
-    return log
 
 
 def run_plan(profile: StudentProfile, catalog: dict[str, Course], algorithm: str,
