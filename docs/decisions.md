@@ -56,7 +56,10 @@ are logged as `PRUNED`.
 
 The spec's demo text says "Pruned CS301: missing prerequisite CS201". Under the spec's own
 rules that is a `PREREQ` result, not `PRUNED`. The README demo script uses the labels and
-term counts the app actually produces (expected 3–5 terms, not the placeholder "8").
+term counts the app actually produces: On-track 3 terms, Transfer 4, Heavy electives 2 (not
+the placeholder "8"). The spec's step 3 ("plan lengthens" at 12 credits) does not happen:
+the prerequisite chain, not credits, bounds plan length. The README demo says so and shows
+the search growing instead (A\* 4 → 26 expansions for On-track).
 
 ## D6. Smaller interpretations
 
@@ -98,6 +101,7 @@ term counts the app actually produces (expected 3–5 terms, not the placeholder
 
 ## D8. Git history beyond the 11 milestone commits (§13.3)
 
-Additional commits, all new (never amended): a Makefile (user request), a ruff lint fix,
-pinning ruff as a dev dependency, and these docs. The spec's §17 "chore: add dependencies"
+Four additional commits, all new (never amended): a Makefile (user request), a ruff lint
+fix, pinning ruff as a dev dependency, and the initial `docs/` folder (user request). Final
+history: 15 commits. The spec's §17 "chore: add dependencies"
 step was folded into commit 1. Commits carry no `Co-Authored-By` trailer.

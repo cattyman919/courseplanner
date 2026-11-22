@@ -15,4 +15,22 @@
 | 8 | Rule-log summariser | done | `feat(explain): add rule-log summarizer` |
 | 9 | Streamlit UI (plans render) | done | `feat(ui): wire planner into streamlit` |
 | 10 | Saved-plans tab | done | `feat(ui): add saved plan persistence` |
-| 11 | README, demo script | next | `docs: add readme, demo script, and architecture notes` |
+| 11 | README, demo script | done | `docs: add readme, demo script, and architecture notes` |
+
+## Acceptance criteria (§15)
+
+| Criterion | Status |
+|---|---|
+| `uv sync && uv run streamlit run app.py` launches; DB auto-created and seeded | ✅ |
+| `rm courseplanner.db` then relaunch recreates and reseeds | ✅ 25 courses, 3 profiles, `user_version = 1` |
+| All 3 scenarios plan under BFS, UCS, A\* | ✅ tested at 12, 15, 18 credits |
+| Transfer log shows a `PREREQ` and a `CONFLICT` | ✅ `CS301` / `CS210/MATH210` |
+| A\* cost == UCS cost on all scenarios (test-enforced) | ✅ |
+| Search stats populate and are non-zero | ✅ |
+| Prerequisite graph renders with coloured nodes | ✅ (AppTest; not yet eyeballed in a browser) |
+| Save → appears → load restores → delete removes | ✅ (AppTest end-to-end) |
+| `uv run pytest -q` passes, including DB tests | ✅ 115 tests |
+| Conventional-commit history, one per milestone | ✅ 11 milestones + 4 support commits (D8) |
+| `git status` clean; `.venv/`, `__pycache__/`, DB untracked | ✅ |
+| No network calls, no LLM calls, no remote DB | ✅ |
+| README demo script matches actual app behaviour | ✅ replayed step by step with AppTest |
