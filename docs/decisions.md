@@ -1,0 +1,74 @@
+# Design decisions and spec deviations
+
+The assignment brief (sections referenced as §N) is followed exactly except where listed
+here. Each entry says what changed and why.
+
+## D1. UCS and A* share one cost model (§8.3)
+
+**Spec:** BFS = 1 per term, UCS = credits per term, A* = `1 + 0.05·credits` per term, plus a
+test that A* cost == UCS cost.
+
+**Problem:** UCS and A* would be minimising different quantities, so equal costs could not
+be expected.
+
+**Decision:** UCS and A* both use `1 + 0.05·credits` per term; UCS is A* with `h = 0`.
+BFS keeps unit cost per term. The A* == UCS test is then meaningful, and the comparison
+table shows A* reaching the same cost with fewer expansions.
+
+## D2. Rule log records the final plan only (§9, §10 Tab 2)
+
+**Problem:** logging every eligibility check for every expanded state produces thousands of
+rows per run (BFS worst), making Tab 2 unreadable and bloating `rule_log`.
+
+**Decision:** the log contains the full rule firings (PREREQ, OFFERING, CONFLICT, PRUNED,
+OK) for each term of the *chosen* plan, plus each term's combo label. Search effort is
+reported as numbers in Tab 3 (expanded, generated, ms, cost).
+
+## D3. Only maximal combos are generated (§7)
+
+**Spec:** emit every bundle with `min_credits <= credits <= max_credits`, cap 64.
+
+**Problem:** ~64-way branching per term risks the 1 s budget, and the cap cuts off bundles
+unpredictably.
+
+**Decision:** `valid_combos` emits only *maximal* bundles — no further eligible course could
+be added without breaking the credit cap or a slot. A non-maximal bundle can never finish
+in fewer terms, and the relevance filter has already removed unneeded courses.
+
+Supporting rules:
+- **Below-minimum fallback:** bundles under `min_credits` are returned only when no bundle
+  reaches it (last course of a plan, or a student blocked mid-chain), so plans don't come
+  back infeasible.
+- **Elective limit:** optional `elective_credits_needed`; once a bundle covers it, no more
+  electives are added. Without this, "maximal" would pad every term with unneeded electives.
+
+## D4. Required courses are closed under prerequisites (§6.3)
+
+Required = all `math` and `core` courses + `track` courses of the target track + any
+transitive prerequisites of those. Gen-ed and other tracks' courses are never required and
+are logged as `PRUNED`.
+
+## D5. Rule labels in the demo script (§12.8)
+
+The spec's demo text says "Pruned CS301: missing prerequisite CS201". Under the spec's own
+rules that is a `PREREQ` result, not `PRUNED`. The README demo script uses the labels and
+term counts the app actually produces (expected 3–5 terms, not the placeholder "8").
+
+## D6. Smaller interpretations
+
+- **Term labels:** first term is the profile's `start_term` in 2026 (Fall 2026) or 2027
+  (Spring 2027); the year increments each fall.
+- **"Inserted for missing prereq" badge:** shown on any planned course that appeared as a
+  missing prerequisite in an earlier `PREREQ` entry.
+- **DB location:** `courseplanner.db` is anchored to the project root, not the launch
+  directory. `get_connection()` / `init_db()` take an optional path so tests use `tmp_path`.
+- **Track override:** choosing another track in the sidebar replans against that track's
+  requirements.
+- **Corequisites:** none in the catalog; the table and field exist but stay empty.
+- **Python:** `requires-python = ">=3.11"`, pinned locally to 3.14 via `.python-version`.
+
+## D7. Git history beyond the 11 milestone commits (§13.3)
+
+Additional commits, all new (never amended): a Makefile (user request), a ruff lint fix,
+pinning ruff as a dev dependency, and these docs. The spec's §17 "chore: add dependencies"
+step was folded into commit 1. Commits carry no `Co-Authored-By` trailer.
