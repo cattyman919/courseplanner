@@ -103,5 +103,23 @@ the search growing instead (A\* 4 → 26 expansions for On-track).
 
 Four additional commits, all new (never amended): a Makefile (user request), a ruff lint
 fix, pinning ruff as a dev dependency, and the initial `docs/` folder (user request). Final
-history: 15 commits. The spec's §17 "chore: add dependencies"
+history: 15 commits for the brief, followed by the commits for D9. The spec's §17 "chore: add dependencies"
 step was folded into commit 1. Commits carry no `Co-Authored-By` trailer.
+
+## D9. Interactive modes beyond the brief
+
+**Why:** the course's example project (SearchLab, a tic-tac-toe search lab) is hands-on:
+the student makes moves, the AI responds, and the search is replayed step by step. The
+brief's planner only lets a user pick one of three preset students and read the result.
+
+**Decision:** keep every required feature unchanged and add:
+- **Watch the Search** (a sixth tab): a step-through replay of the search, the planner's
+  version of SearchLab's Step / Play and tree view.
+- **Build my plan** (a second mode, chosen in the sidebar): the student chooses courses
+  term by term, the same production rules check each pick, and the search can take over
+  from any state.
+
+**Additions beyond the §3 layout:** new modules `reasoning/trace.py`,
+`reasoning/advisor.py` and the `ui/` package, plus tests `tests/test_trace.py` and
+`tests/test_advisor.py`. `run_plan` gains an optional `observer` argument; the
+behaviour is identical without it, and a test enforces this.

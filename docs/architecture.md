@@ -2,7 +2,7 @@
 
 ```text
 courseplanner/
-  app.py                 Streamlit UI (sidebar + 5 tabs)
+  app.py                 Streamlit UI: mode switch, AI planner sidebar + 6 tabs
   domain/
     models.py            frozen dataclasses: Course, StudentProfile, PlanState,
                          RuleResult, PlanResult
@@ -18,6 +18,11 @@ courseplanner/
     combos.py            pruned DFS bundle generator
     search.py            BFS / UCS / A*                 [milestones 6-7]
     explain.py           rule-log builder + summariser
+    trace.py             event recording for step-by-step replay
+    advisor.py           rule checks for student-chosen terms
+  ui/
+    builder.py           "Build my plan" mode
+    search_view.py       "Watch the Search" tab
   tests/                 pytest, one file per layer
   docs/                  these notes
 ```
@@ -171,3 +176,60 @@ States expanded (A\* cost equals UCS cost in every case):
 
 Every run takes under 4 ms. Lowering the cap does not lengthen any plan; it enlarges the
 search, which is where A\*'s advantage shows most.
+
+## Interactive modes
+
+Inspired by the course's SearchLab example (tic-tac-toe with a visible game tree): the
+student acts, the AI responds, and the AI's reasoning is visible step by step.
+
+### Search trace (`reasoning/trace.py`)
+
+`run_plan(..., observer=fn)` calls `fn(kind, data)` at every search event; with no
+observer the search is unchanged. Every node gets an integer id (start = 0).
+
+| Event | Meaning |
+|---|---|
+| `start` | start state pushed onto the frontier |
+| `expand` | state popped and expanded; lists the eligible, needed courses |
+| `push` | successor generated and added to the frontier (g, h recorded) |
+| `duplicate` | successor reaches an already-expanded state, so it is skipped |
+| `worse` | successor reaches a queued state that already has a lower-or-equal g, so it is skipped |
+| `stale` | popped entry whose state was already expanded via a cheaper path |
+| `limit` | 16-term limit reached; not expanded |
+| `goal` | goal test passes; the plan is the parent chain to this node |
+| `exhausted` | frontier empty: infeasible |
+
+`trace_search` turns these into `TraceEvent`s (with plain-English text) and `TraceNode`s.
+`statuses_at(trace, k)` replays the first `k+1` events, giving each visible node a status:
+frontier, current, expanded, skipped, stale, limit, goal or path. Tests check that a
+traced run returns exactly the same plan and expansion count as an untraced run.
+
+### Watch the Search tab (`ui/search_view.py`)
+
+- **Controls:** ⏮ Reset, ◀ Back, Step ▶, ▶ Play / ⏸ Pause, ⏭ Run to end. Play uses
+  `st.fragment(run_every=0.6)`, so only the viewer reruns while playing.
+- **Shown at each step:**
+  - metrics: step, expanded so far, frontier size, explored (closed) size
+  - the current event, highlighted
+  - the 12 most recent events as a process log
+  - the tree as Graphviz DOT, left to right. Node labels give id, term, courses and g,
+    plus h and f for A\*.
+- **At the end:** the solution path is drawn in green, and the number of states each
+  algorithm expanded is compared.
+- **Reset:** changing the algorithm or regenerating the plan resets the replay.
+
+### Build my plan (`reasoning/advisor.py`, `ui/builder.py`)
+
+| Piece | Behaviour |
+|---|---|
+| Setup | start from a preset or a blank student; edit completed courses, track, first term, elective credits required, max credits. Locked once a term is committed (Start over unlocks it). |
+| `course_verdict` | PREREQ / OFFERING first (blocking, 🔒), then relevance: PRUNED is advisory (⚠️, allowed), OK is ✅ |
+| `check_term` | per-course verdicts plus `check_schedule` (CONFLICT, CREDIT_CAP); `can_commit` iff at least one pick and no blocking rule |
+| `available_now` | what the planner itself would consider (eligible ∧ needed) |
+| `suggest_rest` | `run_plan` from the student's current state (start term shifted to the current term) |
+| Picker | every not-yet-completed course, grouped Required / Electives / Other, with an icon and a short reason (e.g. "needs CS301") |
+| AI help | **Pick this term for me** ticks the first term of the optimal plan; **Plan the rest for me** shows the remaining plan with **Accept** |
+| Progress | committed-term timeline, required courses left, elective credits, success message at the goal |
+
+Checkbox state is keyed `pick_<term>_<code>`, so **Undo last term** brings that term's
+picks back.

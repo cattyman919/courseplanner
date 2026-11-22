@@ -16,6 +16,10 @@
 | 9 | Streamlit UI (plans render) | done | `feat(ui): wire planner into streamlit` |
 | 10 | Saved-plans tab | done | `feat(ui): add saved plan persistence` |
 | 11 | README, demo script | done | `docs: add readme, demo script, and architecture notes` |
+| — | Search trace (D9) | done | `feat(search): record step-by-step search trace` |
+| — | Advisor rule checks (D9) | done | `feat(advisor): check student-chosen terms with the rule engine` |
+| — | Build my plan + Watch the Search UI (D9) | done | `feat(ui): add build-my-plan mode and step-through search viewer` |
+| — | Docs for interactive modes | done | `docs: document interactive modes and extend demo script` |
 
 ## Acceptance criteria (§15)
 
@@ -29,7 +33,7 @@
 | Search stats populate and are non-zero | ✅ |
 | Prerequisite graph renders with coloured nodes | ✅ (AppTest; not yet eyeballed in a browser) |
 | Save → appears → load restores → delete removes | ✅ (AppTest end-to-end) |
-| `uv run pytest -q` passes, including DB tests | ✅ 115 tests |
+| `uv run pytest -q` passes, including DB tests | ✅ 168 tests |
 | Conventional-commit history, one per milestone | ✅ 11 milestones + 4 support commits (D8) |
 | `git status` clean; `.venv/`, `__pycache__/`, DB untracked | ✅ |
 | No network calls, no LLM calls, no remote DB | ✅ |

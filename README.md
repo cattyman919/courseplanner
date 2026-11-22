@@ -8,6 +8,17 @@ valid course bundles. BFS, UCS and A\* search over semester states for a plan th
 student's track requirements. Every rule that fires is logged, so the app can explain
 *why* each course lands where it does. It runs locally with Streamlit and SQLite.
 
+There are two modes:
+
+- **🤖 AI planner:** pick a student and the search plans every remaining semester. The
+  **Watch the Search** tab replays that search step by step, like a debugger, showing the
+  tree growing, the frontier and which branches get skipped.
+- **🧑‍🎓 Build my plan:** *you* pick the courses, term by term. The rule engine checks
+  every pick live (✅ eligible, 🔒 missing a prerequisite or not offered this term,
+  ⚠️ not needed for your track, ❌ time clash or over your credit limit) and explains each
+  verdict. At any point you can ask the AI to pick this term or plan the rest from where
+  you are.
+
 ## How it maps to Symbolic AI
 
 | Concept | Where it lives |
@@ -17,6 +28,8 @@ student's track requirements. Every rule that fires is logged, so the app can ex
 | **Forward-chaining-style rule log** | `reasoning/explain.py` replays the chosen plan term by term. Facts derived in one term (newly completed courses) enable rules in the next, and each firing is recorded in order. |
 | **Constraint pruning** | `reasoning/combos.py`: depth-first take/skip search that cuts any branch exceeding the credit cap or clashing on a time slot. The relevance rule also prunes courses that don't advance the goal. |
 | **Heuristic search** | `reasoning/search.py`: BFS, UCS and A\* over `(completed set, term)` states. A\* uses an admissible, consistent heuristic. |
+| **Watching the search** | `reasoning/trace.py` records every search event (expand, generate, skip duplicate or worse path, goal) so the **Watch the Search** tab can replay it step by step. |
+| **Rule-based advising** | `reasoning/advisor.py` checks a student's own picks with the same rules and decides whether the term can be committed. The search can take over from any state the student reaches. |
 
 ## Setup
 
@@ -38,7 +51,7 @@ Run the tests with `uv run pytest -q`.
 
 ```text
 courseplanner/
-  app.py                 Streamlit UI: sidebar + 5 tabs
+  app.py                 Streamlit UI: mode switch, AI planner sidebar + 6 tabs
   Makefile               install / run / test / lint / reset-db / clean
   domain/
     models.py            Course, StudentProfile, PlanState, RuleResult, PlanResult
@@ -54,6 +67,11 @@ courseplanner/
     combos.py            pruned DFS bundle generator
     search.py            BFS / UCS / A*, heuristic
     explain.py           rule-log builder + summary
+    trace.py             event-by-event search recording for replay
+    advisor.py           rule checks for student-chosen terms
+  ui/
+    builder.py           "Build my plan" mode
+    search_view.py       "Watch the Search" tab (Step / Back / Play / Run to end)
   tests/                 pytest, one file per layer
   docs/                  design decisions, architecture, catalog, development notes
 ```
@@ -161,7 +179,7 @@ Admissibility in three lines:
 
 The heuristic is also consistent: one term lowers `h` by at most that term's cost.
 
-## Demo script (about 4 minutes)
+## Demo script (about 6 minutes)
 
 Run `make run` and open http://localhost:8501. The default algorithm is A\*, and
 "Run all three algorithms" is on.
@@ -188,7 +206,25 @@ Run `make run` and open http://localhost:8501. The default algorithm is A\*, and
    `CS301 · Completed(CS201) ∧ Completed(MATH210) ⇒ Eligible`. Those two facts were
    derived in Spring 2027, and in Fall 2027 they fire the rule that makes CS301 eligible.
    Open **Prerequisite Graph** and move **Current term** to see how the frontier advances.
-6. **Bonus: persistence.** Press **Save plan**, open **Saved Plans**, select the row and
+6. **Watch the search.** Still on On-track at 12 credits, open **Watch the Search**.
+   Press **Step ▶** a few times. The first steps are START, then EXPAND #0, which lists
+   every course that is eligible and needed, then one PUSH per bundle. Press **▶ Play**
+   to watch the tree grow (orange = being expanded, white = waiting in the frontier,
+   dashed = skipped). Switch between A\* and BFS to see the difference in size, then
+   **⏭ Run to end**: the solution path turns green, and A\* used 26 expansions against
+   BFS's 58.
+7. **Build my own plan.** Switch the sidebar **Mode** to **🧑‍🎓 Build my plan**. The
+   student starts as On-track.
+   - Tick **AI320**: it shows 🔒 `PREREQ: missing prerequisite(s): CS301`, and **Commit**
+     is disabled.
+   - Untick it and tick **CS301, CS310, MATH301**: all ✅. Commit the term.
+   - In Spring 2027, press **🤖 Pick this term for me**. The AI ticks the first term of
+     its optimal plan from where you are.
+   - Press **🤖 Plan the rest for me**, then **Accept the AI's plan**. 🎓 All
+     requirements are met.
+   - Bonus: press **Start over**, switch to *Transfer* and tick **MATH210 + CS210**. You
+     get ❌ `CONFLICT: both meet MW 10:00-11:30`.
+8. **Bonus: persistence.** Press **Save plan**, open **Saved Plans**, select the row and
    press **Load**. The plan and the sidebar settings come back, and the app jumps to
    Semester Plan. **Delete** asks for confirmation, then removes the plan and its log rows.
 
