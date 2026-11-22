@@ -69,6 +69,11 @@ term counts the app actually produces (expected 3–5 terms, not the placeholder
 - **"Top-3 pruned courses" (§9):** since each `PRUNED` reason is logged once (D2), the
   summary ranks courses by how often they were held back by `PRUNED`, `PREREQ`, or
   `OFFERING`, ties broken by code.
+- **UI defaults:** algorithm defaults to A\* and "Run all three algorithms" defaults to on,
+  so the first Generate already fills the comparison table (the demo's headline moment).
+- **"Current term" in the graph (§10 Tab 4):** a slider picks which planned term is
+  "current"; earlier planned terms count as completed. Courses not required for the track
+  are drawn dashed.
 - **Extra test file:** `tests/test_explain.py`, beyond the four listed in §3.
 - **Line length:** ruff's default rules skip E501, so it is enabled explicitly.
 - **DB location:** `courseplanner.db` is anchored to the project root, not the launch

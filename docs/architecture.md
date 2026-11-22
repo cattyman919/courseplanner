@@ -2,7 +2,7 @@
 
 ```text
 courseplanner/
-  app.py                 Streamlit UI (5 tabs)          [milestones 9-10]
+  app.py                 Streamlit UI (sidebar + tabs; Saved Plans in milestone 10)
   domain/
     models.py            frozen dataclasses: Course, StudentProfile, PlanState,
                          RuleResult, PlanResult
@@ -59,6 +59,21 @@ The app loads the catalog and profiles once and caches them.
 - Join-table rows are read back in insertion order (`ORDER BY rowid`) so a `Course`
   round-trips exactly.
 - All SQL is parameterised; multi-row writes run inside `with conn:`.
+
+## Streamlit app (`app.py`)
+
+| Part | Behaviour |
+|---|---|
+| Caching | `@st.cache_resource` DB connection (runs `init_db()` once); `@st.cache_data(ttl=600)` catalog and profiles; `@st.cache_data` `plan_for(profile, track, max_credits, algorithm, start_term)` |
+| Sidebar | scenario, target track (defaults to the profile's, reset per scenario), max credits 12–21, algorithm (default A\*), "Run all three algorithms" (default on), **Generate plan** |
+| Session state | `plan`, `profile_name`, `algorithm`, plus `params` (inputs behind the shown plan) and `comparison` |
+| Semester Plan | summary from `summarize`, one column per term (wraps every 4), course cards with code, title, credits, slots; red `missing prereq` badge from `inserted_prereqs`; total terms/credits footer; `st.error` + pruned list when infeasible |
+| Rule & Inference Log | `#`, Rule, Subject, OK, Detail; Rule multiselect and OK filter; "Show only pruned courses" expander |
+| Search Stats | expanded / generated / ms / cost metrics; comparison table across BFS, UCS, A\* |
+| Prerequisite Graph | DOT via `st.graphviz_chart`; a "Current term" slider recolours nodes: green completed (before that term), yellow that term, blue planned later, grey unmet; dashed = not required for the track |
+
+The plan only changes when **Generate plan** is pressed; if sidebar inputs differ from the
+shown plan, a caption says so.
 
 ## Reasoning pipeline
 

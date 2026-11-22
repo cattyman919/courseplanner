@@ -27,6 +27,15 @@ One file per layer in `tests/`. pytest is configured in `pyproject.toml`
 (`pythonpath = ["."]`). DB tests use a per-test `tmp_path` database and never touch
 `courseplanner.db`.
 
+## UI checks
+
+Streamlit's `AppTest` (`streamlit.testing.v1`) can drive `app.py` headlessly: set sidebar
+widgets via `at.sidebar.selectbox[...]`, click **Generate plan**, and assert
+`not at.exception`. Target `at.sidebar.*` explicitly — after a plan renders, the main area
+has its own selectbox. `st.badge` renders as markdown (`:red-badge[...]`), so look for it in
+`at.markdown`. AppTest runs `init_db()` against the real `courseplanner.db`, which is why it
+is used for manual checks rather than in `tests/`.
+
 ## Pre-commit checklist (§13.4)
 
 1. `git status` — no stray files.
