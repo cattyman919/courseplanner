@@ -10,11 +10,15 @@ from domain.models import Course, PlanResult, RuleResult, StudentProfile
 from reasoning.explain import ALGORITHM_NAMES, inserted_prereqs, summarize
 from reasoning.rules import required_courses_for, term_label
 from reasoning.search import ALGORITHMS, run_plan
+from reasoning.trace import SearchTrace, trace_search
+from ui.builder import render_builder
+from ui.search_view import render_search_view
 
 TRACKS = ("ai", "systems", "theory")
 RULES = ("PREREQ", "OFFERING", "CONFLICT", "CREDIT_CAP", "PRUNED", "OK", "INFEASIBLE")
-TAB_NAMES = ("Semester Plan", "Rule & Inference Log", "Search Stats", "Prerequisite Graph",
-             "Saved Plans")
+TAB_NAMES = ("Semester Plan", "Rule & Inference Log", "Search Stats", "Watch the Search",
+             "Prerequisite Graph", "Saved Plans")
+MODES = ("🤖 AI planner", "🧑‍🎓 Build my plan")
 COLORS = {"completed": "#7bc47f", "current": "#f5d76e", "planned": "#79a7e3", "unmet": "#d0d0d0"}
 
 st.set_page_config(page_title="CoursePath", page_icon="🎓", layout="wide")
@@ -49,6 +53,14 @@ def plan_for(profile_name: str, track: str, max_credits: int, algorithm: str,
     """Run the planner; cached on every input that can change the result."""
     profile = replace(load_profiles()[profile_name], target_track=track, start_term=start_term)
     return run_plan(profile, load_catalog(), algorithm, max_credits)
+
+
+@st.cache_data(show_spinner=False)
+def trace_for(profile_name: str, track: str, max_credits: int, algorithm: str,
+              start_term: str) -> SearchTrace:
+    """Recorded, step-by-step version of `plan_for` for the Watch the Search tab."""
+    profile = replace(load_profiles()[profile_name], target_track=track, start_term=start_term)
+    return trace_search(profile, load_catalog(), algorithm, max_credits)
 
 
 # --- session state ----------------------------------------------------------------------
@@ -139,6 +151,18 @@ with st.sidebar:
     if not profiles or not catalog:
         st.error("The catalog or profiles are empty. Run `make reset-db` and restart.")
         st.stop()
+    st.session_state.setdefault("mode", MODES[0])
+    mode = st.segmented_control("Mode", MODES, key="mode", required=True)
+    if mode == MODES[1]:
+        st.caption("You pick the courses; the rule engine checks each pick. "
+                   "Switch back to **AI planner** to let the search do everything.")
+
+if mode == MODES[1]:
+    render_builder(profiles, catalog)
+    st.stop()
+
+with st.sidebar:
+    st.divider()
     st.session_state.setdefault("scenario", next(iter(profiles)))
     st.session_state.setdefault("max_credits", 18)
     st.session_state.setdefault("algo", "astar")
@@ -173,8 +197,8 @@ if plan is not None and shown != params:
 profile = (replace(profiles[shown["profile_name"]], target_track=shown["track"],
                    start_term=shown["start_term"]) if plan is not None else base)
 
-tab_plan, tab_log, tab_stats, tab_graph, tab_saved = st.tabs(TAB_NAMES, key="tab",
-                                                             on_change="rerun")
+tab_plan, tab_log, tab_stats, tab_watch, tab_graph, tab_saved = st.tabs(
+    TAB_NAMES, key="tab", on_change="rerun")
 NO_PLAN = "Pick a scenario in the sidebar and press **Generate plan**."
 
 
@@ -303,7 +327,18 @@ def render_graph(result: PlanResult, student: StudentProfile, cat: dict[str, Cou
                "Dashed: not required for the target track.")
 
 
+def render_watch() -> None:
+    """Step-through replay of the search behind the plan on screen."""
+    if not plan.semesters:
+        st.info("Generate a feasible plan first.")
+        return
+    signature = tuple(sorted(shown.items()))
+    render_search_view(lambda a: trace_for(**{**shown, "algorithm": a}),
+                       shown["algorithm"], signature)
+
+
 for tab, render in ((tab_log, lambda: render_log(plan)),
+                    (tab_watch, render_watch),
                     (tab_stats, lambda: render_stats(plan, st.session_state.comparison)),
                     (tab_graph, lambda: render_graph(plan, profile, catalog))):
     with tab:
