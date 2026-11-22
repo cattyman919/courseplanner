@@ -14,5 +14,5 @@
 | 7 | A* + heuristic + A* == UCS test | done | `feat(search): add a* with admissible heuristic` |
 | 8 | Rule-log summariser | done | `feat(explain): add rule-log summarizer` |
 | 9 | Streamlit UI (plans render) | done | `feat(ui): wire planner into streamlit` |
-| 10 | Saved-plans tab | next | `feat(ui): add saved plan persistence` |
-| 11 | README, demo script | todo | `docs: add readme, demo script, and architecture notes` |
+| 10 | Saved-plans tab | done | `feat(ui): add saved plan persistence` |
+| 11 | README, demo script | next | `docs: add readme, demo script, and architecture notes` |

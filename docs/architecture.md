@@ -2,7 +2,7 @@
 
 ```text
 courseplanner/
-  app.py                 Streamlit UI (sidebar + tabs; Saved Plans in milestone 10)
+  app.py                 Streamlit UI (sidebar + 5 tabs)
   domain/
     models.py            frozen dataclasses: Course, StudentProfile, PlanState,
                          RuleResult, PlanResult
@@ -65,15 +65,27 @@ The app loads the catalog and profiles once and caches them.
 | Part | Behaviour |
 |---|---|
 | Caching | `@st.cache_resource` DB connection (runs `init_db()` once); `@st.cache_data(ttl=600)` catalog and profiles; `@st.cache_data` `plan_for(profile, track, max_credits, algorithm, start_term)` |
-| Sidebar | scenario, target track (defaults to the profile's, reset per scenario), max credits 12–21, algorithm (default A\*), "Run all three algorithms" (default on), **Generate plan** |
-| Session state | `plan`, `profile_name`, `algorithm`, plus `params` (inputs behind the shown plan) and `comparison` |
+| Sidebar | scenario, target track (defaults to the profile's, reset per scenario), max credits 12–21, algorithm (default A\*), "Run all three algorithms" (default on), **Generate plan**, **Save plan** (disabled until a plan exists) |
+| Session state | `plan`, `profile_name`, `algorithm`, plus `params` (inputs behind the shown plan), `comparison`, `confirm_delete`, `flash` (one-shot success message) |
 | Semester Plan | summary from `summarize`, one column per term (wraps every 4), course cards with code, title, credits, slots; red `missing prereq` badge from `inserted_prereqs`; total terms/credits footer; `st.error` + pruned list when infeasible |
 | Rule & Inference Log | `#`, Rule, Subject, OK, Detail; Rule multiselect and OK filter; "Show only pruned courses" expander |
 | Search Stats | expanded / generated / ms / cost metrics; comparison table across BFS, UCS, A\* |
+| Saved Plans | `list_saved_plans` table (never cached), single-row selection → preview (terms, credits, cost, log size); **Load** restores the plan, the sidebar widgets, and jumps to Semester Plan; **Delete** asks for confirmation, then `delete_saved_plan` + rerun |
 | Prerequisite Graph | DOT via `st.graphviz_chart`; a "Current term" slider recolours nodes: green completed (before that term), yellow that term, blue planned later, grey unmet; dashed = not required for the track |
 
 The plan only changes when **Generate plan** is pressed; if sidebar inputs differ from the
 shown plan, a caption says so.
+
+**Callbacks, not `if st.button(...)`:** Generate, Save, and Load run as `on_click`
+callbacks, which Streamlit executes *before* the script. That way the page — including the
+sidebar's Save button, drawn above the main area — already sees the new plan on the same
+run. (With an inline `if st.button` the Save button stayed disabled for one run after
+generating.) Sidebar widgets are keyed (`scenario`, `track_<profile>`, `max_credits`,
+`algo`, `compare`) and seeded with `setdefault`, so Load can set them; tabs use
+`key="tab", on_change="rerun"` so Load can switch to the plan tab.
+
+**Saving:** the plan on screen is saved with the inputs that produced it (`params`), not
+the current sidebar values. A loaded plan has no comparison table; regenerate for one.
 
 ## Reasoning pipeline
 
