@@ -13,8 +13,8 @@ run: install ## Launch the Streamlit app (creates and seeds the DB on first run)
 test: ## Run the test suite
 	uv run pytest -q
 
-lint: ## Lint with ruff (fetched on demand via uvx)
-	uvx ruff check .
+lint: ## Lint with ruff
+	uv run ruff check .
 
 reset-db: ## Delete the local SQLite DB; it is recreated on next run
 	rm -f courseplanner.db courseplanner.db-journal
