@@ -1,4 +1,4 @@
-.PHONY: help install run serve test test-web lint reset-db clean
+.PHONY: help install run test test-web lint reset-db clean
 .DEFAULT_GOAL := help
 
 help: ## Show available targets
@@ -7,10 +7,7 @@ help: ## Show available targets
 install: ## Install dependencies with uv
 	uv sync
 
-run: install ## Launch the Streamlit app (creates and seeds the DB on first run)
-	uv run streamlit run app.py
-
-serve: install ## Launch the web app at http://localhost:8000 (FastAPI + HTML/JS)
+run: install ## Launch the web app at http://localhost:8000 (creates and seeds the DB on first run)
 	@echo "CoursePath: http://localhost:8000"
 	uv run uvicorn api.server:app --port 8000
 
