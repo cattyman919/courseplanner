@@ -3,7 +3,7 @@
 // chain of prerequisites it needs and the courses it unlocks.
 
 import { closure, layoutDag } from "./layout.js";
-import { clear, h, svg } from "./util.js";
+import { clear, h, keepFocus, pressable, svg } from "./util.js";
 
 const NODE_W = 132;
 const NODE_H = 40;
@@ -20,7 +20,7 @@ export function init(ctx, root) {
   let hovered = null;
 
   const legend = h("div", { class: "legend graph-legend" });
-  const panel = h("div", { class: "card node-detail" });
+  const panel = h("div", { class: "card node-detail", tabindex: -1 });
   const caption = h("p", { class: "muted" });
   const { pos, width, height } = layoutDag(ctx.catalog, { dx: NODE_W + 46, dy: NODE_H + 16 });
   const W = width - 46 + PAD * 2;
@@ -49,9 +49,9 @@ export function init(ctx, root) {
     const p = pos.get(c.code);
     const tag = svg("text", { x: NODE_W - 8, y: 16, class: "tag", "text-anchor": "end" });
     const g = svg("g", { class: "gnode", transform: `translate(${p.x + PAD},${p.y + PAD})`,
-      tabindex: 0, role: "button", "aria-label": `${c.code} ${c.title}`,
       onclick: () => { selected = selected === c.code ? null : c.code; paint(); },
-      onkeydown: (e) => { if (e.key === "Enter") { selected = c.code; paint(); } },
+      onfocus: () => { hovered = c.code; paint(); },
+      onblur: () => { hovered = null; paint(); },
       onmouseenter: () => { hovered = c.code; paint(); },
       onmouseleave: () => { hovered = null; paint(); } },
     svg("title", { text: `${c.code} · ${c.title}` }),
@@ -61,6 +61,10 @@ export function init(ctx, root) {
     svg("text", { x: 12, y: 31, class: "name",
       text: c.title.length > 19 ? `${c.title.slice(0, 18)}…` : c.title }),
     tag);
+    pressable(g, `${c.code} ${c.title}`, () => {
+      selected = selected === c.code ? null : c.code;
+      paint();
+    });
     nodes.append(g);
     nodeEls.set(c.code, { g, tag });
   }
@@ -132,7 +136,7 @@ export function init(ctx, root) {
         + ` (${plan.profile?.target_track || ""} track). Arrows point from a prerequisite to `
         + "the course that needs it."
       : "Generate a plan in the AI planner to colour the graph by term.";
-    renderPanel(focus, up, down, term, done);
+    keepFocus(panel, () => renderPanel(focus, up, down, term, done), panel);
   }
 
   function renderPanel(focus, up, down, term, done) {

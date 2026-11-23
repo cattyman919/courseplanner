@@ -3,7 +3,9 @@
 
 import { api } from "./api.js";
 import { replay, layoutTree } from "./layout.js";
-import { ALGORITHMS, clear, fmt, h, segmented, stat, svg, toast } from "./util.js";
+import {
+  ALGORITHMS, clear, fmt, h, keepFocus, pressable, segmented, stat, svg, toast,
+} from "./util.js";
 
 const KIND_ICON = { start: "🟦", expand: "🔶", push: "➕", duplicate: "✂️", worse: "✂️",
   stale: "♻️", limit: "⛔", goal: "🎯", exhausted: "❌" };
@@ -42,7 +44,7 @@ export function init(ctx, root) {
   const banner = h("div", { class: "banner" });
   const statsRow = h("div", { class: "stats" });
   const scroller = h("div", { class: "tree-scroll" });
-  const detail = h("div", { class: "card node-detail" });
+  const detail = h("div", { class: "card node-detail", tabindex: -1 });
   const log = h("ol", { class: "event-log" });
   const done = h("div");
   const scrub = h("input", { type: "range", min: 0, max: 0, value: 0, class: "scrub",
@@ -146,6 +148,8 @@ export function init(ctx, root) {
         : n.term}` }),
       svg("text", { x: 8, y: 28, class: "t2", text: line2 }),
       svg("text", { x: 8, y: 41, class: "t3", text: `g=${fmt(n.g)}${f}` }));
+      pressable(g, `Node ${n.id}: ${n.title}, g ${fmt(n.g)}`
+        + `${n.h !== null ? `, h ${fmt(n.h)}` : ""}`, () => select(n.id));
       nodes.append(g);
       nodeEls.set(n.id, g);
     }
@@ -231,12 +235,15 @@ export function init(ctx, root) {
     playBtn.textContent = st.playing ? "⏸ Pause" : "▶ Play";
 
     const from = Math.max(0, st.step - 15);
-    clear(log, t.events.slice(from, st.step + 1).reverse().map((e) => h("li", {
-      class: e.step === st.step ? "now" : "", onclick: () => goto(e.step) },
-    h("span", { class: "mono faint", text: String(e.step + 1) }),
-    h("span", { text: `${KIND_ICON[e.kind]} ${e.text}` }))));
+    keepFocus(log, () => clear(log, t.events.slice(from, st.step + 1).reverse().map((e) => h("li",
+      { class: e.step === st.step ? "now" : "" },
+      h("button", { type: "button", dataset: { key: `ev:${e.step}` },
+        "aria-current": e.step === st.step ? "step" : undefined,
+        title: `Jump to step ${e.step + 1}`, onclick: () => goto(e.step) },
+      h("span", { class: "mono faint", text: String(e.step + 1) }),
+      h("span", { text: `${KIND_ICON[e.kind]} ${e.text}` }))))));
 
-    renderDetail(status);
+    keepFocus(detail, () => renderDetail(status), detail);
     if (st.step === last && t.goal_node !== null) {
       const others = ALGORITHMS.filter(([a]) => a !== t.algorithm)
         .map(([a, name]) => `${name} ${t.expanded_by_algorithm[a]}`).join(", ");
@@ -335,7 +342,7 @@ export function init(ctx, root) {
 
   document.addEventListener("keydown", (e) => {
     if (document.body.dataset.view !== "watch" || e.target.closest("input, textarea")) return;
-    if (e.key === " " && e.target.closest("button")) return; // the button handles it
+    if (e.key === " " && e.target.closest("button, [role=button]")) return; // it handles it
     const keys = { ArrowRight: () => goto(st.step + 1), ArrowLeft: () => goto(st.step - 1),
       Home: () => goto(0), End: () => goto(Infinity), " ": () => togglePlay() };
     if (keys[e.key]) { e.preventDefault(); keys[e.key](); }

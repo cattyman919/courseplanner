@@ -2,7 +2,9 @@
 // the rule log explains each decision. Re-plans live whenever a setting changes.
 
 import { api } from "./api.js";
-import { ALGORITHMS, RULE_ICON, TRACKS, clear, fmt, h, segmented, stat, toast } from "./util.js";
+import {
+  ALGORITHMS, RULE_ICON, TRACKS, clear, fmt, h, keepFocus, segmented, stat, toast,
+} from "./util.js";
 
 const RULES = ["OK", "PREREQ", "OFFERING", "CONFLICT", "PRUNED", "CREDIT_CAP", "INFEASIBLE"];
 const RULE_HELP = {
@@ -32,7 +34,7 @@ export function init(ctx, root) {
     summary: h("div", { class: "card summary-card" }),
     terms: h("div", { class: "term-row" }),
     compare: h("div", { class: "card" }),
-    why: h("div", { class: "card why-card" }),
+    why: h("div", { class: "card why-card", tabindex: -1 }),
     log: h("div", { class: "card log-card" }),
   };
 
@@ -103,11 +105,13 @@ export function init(ctx, root) {
   function show(plan) {
     ctx.plan = plan;
     if (selected && !plan.log.some((r) => r.subject === selected)) selected = null;
-    renderSummary(plan);
-    renderTerms(plan);
-    renderWhy(plan);
-    renderCompare(plan);
-    renderLog(plan);
+    keepFocus(root, () => {
+      renderSummary(plan);
+      renderTerms(plan);
+      renderWhy(plan);
+      renderCompare(plan);
+      renderLog(plan);
+    }, els.why);
     ctx.emit("plan", plan);
   }
 
@@ -137,6 +141,7 @@ export function init(ctx, root) {
     const c = ctx.byCode.get(code);
     return h("button", { type: "button",
       class: `course-chip cat-${c.category}${selected === code ? " selected" : ""}`,
+      dataset: { key: `chip:${code}` }, "aria-pressed": selected === code ? "true" : "false",
       title: `${c.title} · ${c.credits} cr · prereqs: ${c.prereqs.join(", ") || "none"}`,
       onclick: () => { selected = selected === code ? null : code; show(ctx.plan); },
       ...extra },
@@ -220,19 +225,20 @@ export function init(ctx, root) {
     plan.log.forEach((r) => { counts[r.rule] = (counts[r.rule] || 0) + 1; });
     const chips = RULES.filter((r) => counts[r]).map((r) => h("button", {
       type: "button", class: `rule-pill r-${r} toggle${filters.has(r) ? "" : " off"}`,
-      title: RULE_HELP[r],
-      onclick: () => { filters.has(r) ? filters.delete(r) : filters.add(r); renderLog(plan); },
+      title: RULE_HELP[r], dataset: { key: `filter:${r}` },
+      "aria-pressed": filters.has(r) ? "true" : "false",
+      onclick: () => {
+        filters.has(r) ? filters.delete(r) : filters.add(r);
+        keepFocus(els.log, () => renderLog(plan));
+      },
     }, `${RULE_ICON[r]} ${r} `, h("small", { text: String(counts[r]) })));
     const q = query.trim().toLowerCase();
     const rows = plan.log.map((r, i) => [r, i]).filter(([r]) => filters.has(r.rule)
       && (!q || `${r.subject} ${r.detail}`.toLowerCase().includes(q)));
     const search = h("input", { type: "search", placeholder: "Filter, e.g. CS301 or Fall 2027",
-      value: query, oninput: (e) => {
+      "aria-label": "Filter the rule log", value: query, oninput: (e) => {
         query = e.target.value;
-        renderLog(plan);
-        const again = els.log.querySelector("input[type=search]");
-        again.focus();
-        again.setSelectionRange(query.length, query.length);
+        keepFocus(els.log, () => renderLog(plan));
       } });
     clear(els.log,
       h("div", { class: "log-head" },
@@ -240,8 +246,9 @@ export function init(ctx, root) {
           h("p", { class: "muted", text: `${rows.length} of ${plan.log.length} rule firings, `
             + "in the order the planner reasoned about the final plan." })), search),
       h("div", { class: "chip-row" }, chips),
-      h("div", { class: "log-table" }, rows.map(([r, i]) => h("div", {
-        class: `log-row${r.ok ? "" : " fail"}`,
+      h("div", { class: "log-table" }, rows.map(([r, i]) => h("button", {
+        type: "button", class: `log-row${r.ok ? "" : " fail"}`, dataset: { key: `log:${i}` },
+        title: ctx.byCode.has(r.subject) ? `Explain ${r.subject}` : undefined,
         onclick: () => {
           if (ctx.byCode.has(r.subject)) { selected = r.subject; show(ctx.plan); }
         } },

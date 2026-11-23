@@ -2,7 +2,7 @@
 // (rule log rows go with it via ON DELETE CASCADE).
 
 import { api } from "./api.js";
-import { clear, fmt, h, toast } from "./util.js";
+import { clear, fmt, h, keepFocus, toast } from "./util.js";
 
 const NAMES = { astar: "A*", ucs: "UCS", bfs: "BFS" };
 
@@ -17,7 +17,8 @@ export function init(ctx, root) {
 
   async function refresh() {
     try {
-      render(await api.savedPlans());
+      const rows = await api.savedPlans();
+      keepFocus(body, () => render(rows), () => body.querySelector("button"));
     } catch (err) {
       toast(err.message, "error");
     }
@@ -49,9 +50,10 @@ export function init(ctx, root) {
             onclick: () => load(r.id) }),
           confirming === r.id
             ? h("button", { type: "button", class: "danger-btn small", text: "Confirm delete",
-              onclick: () => remove(r.id) })
+              dataset: { key: `del:${r.id}` }, onclick: () => remove(r.id) })
             : h("button", { type: "button", class: "ghost-btn small", text: "Delete",
-              onclick: () => { confirming = r.id; render(rows); } }))))))));
+              dataset: { key: `del:${r.id}` },
+              onclick: () => { confirming = r.id; keepFocus(body, () => render(rows)); } }))))))));
   }
 
   async function load(id) {

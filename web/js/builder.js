@@ -3,7 +3,7 @@
 // pick a term or plan the rest from wherever the student is.
 
 import { api } from "./api.js";
-import { ALGORITHMS, RULE_ICON, TRACKS, clear, h, segmented, toast } from "./util.js";
+import { ALGORITHMS, RULE_ICON, TRACKS, clear, h, keepFocus, segmented, toast } from "./util.js";
 
 const BLANK = "__blank__";
 const GROUPS = [["required", "Required for your track"], ["elective", "Electives"],
@@ -272,17 +272,21 @@ export function init(ctx, root) {
     const data = st.data;
     if (!data) return;
     const done = data.progress.done;
-    clear(root,
+    // Redraw everything, but put keyboard focus back on the control that had it (or on the
+    // term heading when that control is gone), so keyboard users are not sent to the top.
+    keepFocus(root, () => clear(root,
       h("div", { class: "view-head" },
         h("div", {}, h("p", { class: "eyebrow", text: "Build my plan" }),
-          h("h1", { text: "You choose the courses. The rule engine checks every pick." }))),
+          h("h1", { tabindex: -1, text: "You choose the courses. The rule engine checks "
+            + "every pick." }))),
       setup(),
       done ? null : h("div", { class: "build-head" },
-        h("h2", {}, `2 · Term ${data.term_index + 1}: `, h("span", { class: "accent",
-          text: data.term_label }))),
+        h("h2", { tabindex: -1 }, `2 · Term ${data.term_index + 1}: `, h("span", {
+          class: "accent", text: data.term_label }))),
       done ? null : h("div", { class: "build-grid" }, picker(data), checks(data)),
       suggestion(),
-      timeline(data));
+      timeline(data)),
+    () => root.querySelector(".build-head h2") || root.querySelector("h1"));
   }
 
   refresh();

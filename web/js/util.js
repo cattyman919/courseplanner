@@ -76,3 +76,45 @@ export function stat(label, value, hint) {
   return h("div", { class: "stat", title: hint }, h("span", { text: label }),
     h("b", { text: String(value) }));
 }
+
+/** Stable identity of a focusable element, so focus can be put back after a re-render. */
+function focusKey(el) {
+  if (!el || el === document.body) return null;
+  if (el.dataset?.key) return `key:${el.dataset.key}`;
+  if (el.dataset?.code) return `code:${el.dataset.code}`;
+  if (el.tagName === "INPUT") return `input:${el.type}:${el.getAttribute("aria-label") || el.placeholder || ""}`;
+  return `${el.tagName}:${el.textContent.trim()}`;
+}
+
+/**
+ * Run `render()` (which replaces children of `scope`) and move keyboard focus back to the
+ * equivalent element afterwards; if it is gone or disabled, focus `fallback` instead.
+ */
+export function keepFocus(scope, render, fallback) {
+  const active = document.activeElement;
+  const inside = active && scope.contains(active) && active !== scope;
+  const key = inside ? focusKey(active) : null;
+  const selection = inside && active.tagName === "INPUT"
+    ? [active.selectionStart, active.selectionEnd] : null;
+  render();
+  if (!key) return;
+  const match = [...scope.querySelectorAll("button, input, [tabindex], a[href]")]
+    .find((el) => focusKey(el) === key && !el.disabled);
+  const target = match || (typeof fallback === "function" ? fallback() : fallback);
+  if (!target) return;
+  target.focus({ preventScroll: true });
+  if (match && selection && match.setSelectionRange) {
+    try { match.setSelectionRange(...selection); } catch { /* not a text input */ }
+  }
+}
+
+/** Make a non-button element (e.g. an SVG group) operable with Enter and Space. */
+export function pressable(el, label, onPress) {
+  el.setAttribute("tabindex", "0");
+  el.setAttribute("role", "button");
+  el.setAttribute("aria-label", label);
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPress(); }
+  });
+  return el;
+}
