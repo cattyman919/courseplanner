@@ -6,18 +6,30 @@ prerequisites, term offerings, time slots and credits. Production rules decide w
 courses are eligible and which are worth taking. Constraint pruning builds each term's
 valid course bundles. BFS, UCS and A\* search over semester states for a plan that meets the
 student's track requirements. Every rule that fires is logged, so the app can explain
-*why* each course lands where it does. It runs locally with Streamlit and SQLite.
+*why* each course lands where it does.
 
-There are two modes:
+It runs locally as a small web app: a Python JSON API (FastAPI) over the reasoning engine
+and SQLite, and a hand-written HTML/CSS/JavaScript front end with no framework, no build
+step and no external requests. The layout follows the SearchLab example.
 
-- **🤖 AI planner:** pick a student and the search plans every remaining semester. The
-  **Watch the Search** tab replays that search step by step, like a debugger, showing the
-  tree growing, the frontier and which branches get skipped.
-- **🧑‍🎓 Build my plan:** *you* pick the courses, term by term. The rule engine checks
-  every pick live (✅ eligible, 🔒 missing a prerequisite or not offered this term,
-  ⚠️ not needed for your track, ❌ time clash or over your credit limit) and explains each
-  verdict. At any point you can ask the AI to pick this term or plan the rest from where
-  you are.
+The app has five views:
+
+1. **AI planner:** pick a student, track, credit limit and algorithm. The plan updates
+   live. Click any course to trace the rules that fired for it. Filter the rule & inference
+   log by rule. Compare BFS, UCS and A\* side by side.
+2. **Build my plan:** *you* pick the courses, term by term, by clicking course cards. The
+   rule engine checks every click (✅ eligible, 🔒 missing a prerequisite, 📅 not offered
+   this term, ⚠️ not needed for your track, ❌ time clash or over your credit limit) and
+   explains each verdict. Hovering a locked course highlights the prerequisites it is
+   waiting for. At any point you can ask the AI to pick this term or plan the rest from
+   where you are.
+3. **Watch the search:** replays a recorded search one event at a time, like a debugger.
+   You get Step, Back, Play with a speed control, a scrubber and keyboard shortcuts. The
+   tree grows as you step, and clicking a node shows its g, h and f values and the
+   courses on its path.
+4. **Prerequisite graph:** the whole catalog as a DAG, coloured by the term each course
+   lands in. Click a course to light up its prerequisite chain and everything it unlocks.
+5. **Saved plans:** plans stored in SQLite. Load one back into the planner, or delete it.
 
 ## How it maps to Symbolic AI
 
@@ -28,31 +40,33 @@ There are two modes:
 | **Forward-chaining-style rule log** | `reasoning/explain.py` replays the chosen plan term by term. Facts derived in one term (newly completed courses) enable rules in the next, and each firing is recorded in order. |
 | **Constraint pruning** | `reasoning/combos.py`: depth-first take/skip search that cuts any branch exceeding the credit cap or clashing on a time slot. The relevance rule also prunes courses that don't advance the goal. |
 | **Heuristic search** | `reasoning/search.py`: BFS, UCS and A\* over `(completed set, term)` states. A\* uses an admissible, consistent heuristic. |
-| **Watching the search** | `reasoning/trace.py` records every search event (expand, generate, skip duplicate or worse path, goal) so the **Watch the Search** tab can replay it step by step. |
+| **Watching the search** | `reasoning/trace.py` records every search event (expand, generate, skip duplicate or worse path, goal) so the **Watch the search** view can replay it step by step. |
 | **Rule-based advising** | `reasoning/advisor.py` checks a student's own picks with the same rules and decides whether the term can be committed. The search can take over from any state the student reaches. |
+| **Explanation interface** | `api/` serves every verdict, cost and event as JSON, and `web/` only displays them. The browser never re-implements a rule, so what you see is exactly what the Python engine (and its tests) computed. |
 
 ## Setup
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). Node.js 18+ is optional and
+only needed to run the front-end unit tests.
 
 ```bash
-uv sync
-uv run streamlit run app.py
+make run          # uv sync, then serve http://localhost:8000
 ```
 
-Or use the Makefile: `make run`, `make test`, `make lint` (`make` lists every target).
+Without make: `uv sync && uv run uvicorn api.server:app --port 8000`, then open
+http://localhost:8000. The interactive API docs are at http://localhost:8000/api/docs.
+
+`make test` runs the Python tests (pytest) and the JavaScript tests (`node --test`).
+`make lint` runs ruff, and `make` on its own lists every target.
 
 The SQLite database `courseplanner.db` is created and seeded automatically on first
 launch. You don't need environment variables, secrets or a network service.
-
-Run the tests with `uv run pytest -q`.
 
 ## Architecture
 
 ```text
 courseplanner/
-  app.py                 Streamlit UI: mode switch, AI planner sidebar + 6 tabs
-  Makefile               install / run / test / lint / reset-db / clean
+  Makefile               install / run / test / test-web / lint / reset-db / clean
   domain/
     models.py            Course, StudentProfile, PlanState, RuleResult, PlanResult
     catalog.py           25-course catalog (source of truth for seeding)
@@ -69,10 +83,15 @@ courseplanner/
     explain.py           rule-log builder + summary
     trace.py             event-by-event search recording for replay
     advisor.py           rule checks for student-chosen terms
-  ui/
-    builder.py           "Build my plan" mode
-    search_view.py       "Watch the Search" tab (Step / Back / Play / Run to end)
-  tests/                 pytest, one file per layer
+  api/
+    server.py            FastAPI app: JSON endpoints + serves web/
+    serialize.py         dataclasses -> JSON
+  web/
+    index.html           single page, five views
+    css/style.css        all styling
+    js/                  app.js (router), api.js, util.js, layout.js (pure helpers),
+                         planner.js, builder.js, watch.js, graph.js, saved.js
+  tests/                 pytest, one file per layer; tests/web/ for node --test
   docs/                  design decisions, architecture, catalog, development notes
 ```
 
@@ -81,7 +100,9 @@ domain/*.py --seed--> courseplanner.db --load--> Course / StudentProfile
                             ^                          |
                        save / load            rules -> combos -> search
                             |                          |
-                            +------ PlanResult <-------+ --> app.py tabs
+                            +------ PlanResult <-------+
+                                        |
+                              api/serialize.py -> JSON -> web/js views
 ```
 
 ## Data model
@@ -181,52 +202,54 @@ The heuristic is also consistent: one term lowers `h` by at most that term's cos
 
 ## Demo script (about 6 minutes)
 
-Run `make run` and open http://localhost:8501. The default algorithm is A\*, and
-"Run all three algorithms" is on.
+Run `make run` and open http://localhost:8000. The planner starts with *On-track*, the AI
+track, 18 credits per term and A\*.
 
-1. **On-track + A\*.** Pick *On-track* and press **Generate plan**. You get a 3-term plan:
-   Fall 2026 *CS301, CS310, CS350, CS360, MATH301*, Spring 2027 *AI320, AI330, CS390*,
-   Fall 2027 *AI401*. That's 29 credits at cost 4.45. **Search Stats** shows A\* expanded
-   4 nodes, against 14 for BFS and 15 for UCS.
-2. **Transfer.** Switch to *Transfer* and regenerate. The plan grows to 4 terms (starting
-   Spring 2027), and the catch-up courses CS201, MATH210 and CS210 get red
-   **missing prereq** badges. In **Rule & Inference Log**, filter Rule to `PREREQ`. You'll
-   see `CS301 · Spring 2027: missing prerequisite(s): CS201, MATH210`. Filter to `CONFLICT`
-   to see `CS210/MATH210 · both meet MW 10:00-11:30; cannot take both`.
-3. **Tighter credit cap.** Switch back to *On-track*, set **Max credits per term** to 12,
-   and regenerate. The plan is still 3 terms, because the prerequisite chain sets the
-   length, not credits. The course load is spread out to 10 / 10 / 9 credits, and the
-   search grows a lot: A\* expands 26 nodes (142 generated), up from 4.
-4. **BFS vs UCS vs A\*.** At 12 credits, the **Search Stats** comparison table shows
-   BFS 58, UCS 69 and A\* 26 expansions. A\* reaches the same cost as UCS (4.45), and every
-   algorithm finds a 3-term plan. Switch the algorithm radio from BFS to A\* to see the
-   same thing one run at a time.
-5. **Explain a chain.** Back on *Transfer*, open **Rule & Inference Log** and filter
-   Rule to `OK`. Fall 2027 shows
-   `CS301 · Completed(CS201) ∧ Completed(MATH210) ⇒ Eligible`. Those two facts were
-   derived in Spring 2027, and in Fall 2027 they fire the rule that makes CS301 eligible.
-   Open **Prerequisite Graph** and move **Current term** to see how the frontier advances.
-6. **Watch the search.** Still on On-track at 12 credits, open **Watch the Search**.
-   Press **Step ▶** a few times. The first steps are START, then EXPAND #0, which lists
-   every course that is eligible and needed, then one PUSH per bundle. Press **▶ Play**
-   to watch the tree grow (orange = being expanded, white = waiting in the frontier,
-   dashed = skipped). Switch between A\* and BFS to see the difference in size, then
-   **⏭ Run to end**: the solution path turns green, and A\* used 26 expansions against
-   BFS's 58.
-7. **Build my own plan.** Switch the sidebar **Mode** to **🧑‍🎓 Build my plan**. The
-   student starts as On-track.
-   - Tick **AI320**: it shows 🔒 `PREREQ: missing prerequisite(s): CS301`, and **Commit**
-     is disabled.
-   - Untick it and tick **CS301, CS310, MATH301**: all ✅. Commit the term.
-   - In Spring 2027, press **🤖 Pick this term for me**. The AI ticks the first term of
-     its optimal plan from where you are.
-   - Press **🤖 Plan the rest for me**, then **Accept the AI's plan**. 🎓 All
-     requirements are met.
-   - Bonus: press **Start over**, switch to *Transfer* and tick **MATH210 + CS210**. You
-     get ❌ `CONFLICT: both meet MW 10:00-11:30`.
-8. **Bonus: persistence.** Press **Save plan**, open **Saved Plans**, select the row and
-   press **Load**. The plan and the sidebar settings come back, and the app jumps to
-   Semester Plan. **Delete** asks for confirmation, then removes the plan and its log rows.
+1. **On-track + A\*.** The plan appears straight away, with 3 terms:
+   - Fall 2026: *CS301, CS310, CS350, CS360, MATH301*
+   - Spring 2027: *AI320, AI330, CS390*
+   - Fall 2027: *AI401*
+
+   That's 29 credits at cost 4.45. The comparison card shows A\* expanded 4 states,
+   against 14 for BFS and 15 for UCS.
+2. **Transfer.** Click *Transfer*. The plan grows to 4 terms, starting Spring 2027, and
+   the catch-up courses CS201, MATH210 and CS210 get amber **catch-up** badges. Click
+   **CS301** in the plan: the "Why this course?" card shows
+   `Spring 2027: missing prerequisite(s): CS201, MATH210`, then
+   `Completed(CS201) ∧ Completed(MATH210) ⇒ Eligible` in Fall 2027. That's forward
+   chaining: facts derived in one term fire the rule in the next. In the rule log, click
+   the chips so only `CONFLICT` stays on. You'll see
+   `CS210/MATH210 · Spring 2027: both meet MW 10:00-11:30; cannot take both`.
+3. **Tighter credit cap.** Click *On-track* and drag **Max credits per term** to 12. The
+   plan is still 3 terms, because the prerequisite chain sets the length, not credits. The
+   load spreads out to 10 / 10 / 9 credits, and the comparison card shows the search
+   growing: BFS 58, UCS 69 and A\* 26 expansions. A\* and UCS agree on cost 4.45.
+4. **Prerequisite graph.** Open view 4 and click **AI401**. Its five-deep chain lights up
+   in amber: CS101 → CS201 → CS301 → AI320 → AI401, plus MATH101 → MATH210. That chain
+   length is half of the A\* heuristic.
+5. **Watch the search.** Open view 3 (On-track, 12 credits, A\*). Press **Step ▶** (or
+   →) a few times. The first steps are START, then EXPAND #0, which lists every course
+   that is eligible and needed, then one PUSH per bundle. Press **▶ Play**:
+   - The tree grows, and the view follows the current node.
+   - Orange means being expanded, white means waiting in the frontier, and dashed means
+     skipped as a duplicate or worse path.
+
+   Click any node to see its g, h and f values. Press **⏭ Run to end**: the solution path
+   turns green, and the summary reads "A\* … 26 states … UCS 69, BFS 58". Switch to
+   **BFS** to see a much bigger tree.
+6. **Build my own plan.** Open view 2. The student starts as On-track.
+   - Click **AI320**: it shows 🔒 *needs CS301*. Hovering it highlights CS301, and the
+     Rule check panel shows `PREREQ`. **Commit** is disabled.
+   - Click **SYS330**: you get ⚠️ `PRUNED not needed for track ai`.
+   - Unpick both and press **🤖 Pick this term**: the AI ticks the first term of its
+     optimal plan. Commit it.
+   - Press **🤖 Plan the rest**, then **Accept the AI's plan**. 🎓 Every requirement is
+     met. **↶ Undo last term** brings the last term's picks back.
+   - Bonus: press **Start over** and choose *Transfer*. Pick **CS210 + MATH210**: you get
+     ❌ `CONFLICT CS210/MATH210 both meet MW 10:00-11:30`.
+7. **Persistence.** In the planner, press **💾 Save this plan**, then open view 5. Press
+   **Load**: the plan comes back from SQLite with its settings. **Delete** asks for
+   confirmation, then removes the plan and its rule-log rows.
 
 ## Limitations and possible extensions
 
@@ -246,7 +269,7 @@ Run `make run` and open http://localhost:8501. The default algorithm is A\*, and
   - corequisite rules (take X with Y)
   - a summer term
   - a GPA or workload model
-  - editing the catalog from the UI, with cache-busting
+  - editing the catalog from the UI (the API caches the catalog at startup)
   - exporting a plan to a calendar
 
 ## Git workflow
@@ -260,6 +283,6 @@ checklist and tooling notes are in [docs/development.md](docs/development.md).
 Documentation beyond this README:
 - [docs/decisions.md](docs/decisions.md): every place this build deviates from or
   interprets the brief
-- [docs/architecture.md](docs/architecture.md): modules, schema, UI wiring, measured
-  search results
+- [docs/architecture.md](docs/architecture.md): modules, schema, API endpoints, front-end
+  wiring, measured search results
 - [docs/progress.md](docs/progress.md): milestone status

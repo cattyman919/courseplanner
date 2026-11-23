@@ -103,7 +103,7 @@ the search growing instead (A\* 4 → 26 expansions for On-track).
 
 Four additional commits, all new (never amended): a Makefile (user request), a ruff lint
 fix, pinning ruff as a dev dependency, and the initial `docs/` folder (user request). Final
-history: 15 commits for the brief, followed by the commits for D9. The spec's §17 "chore: add dependencies"
+history: 15 commits for the brief, followed by the commits for D9 and D10. The spec's §17 "chore: add dependencies"
 step was folded into commit 1. Commits carry no `Co-Authored-By` trailer.
 
 ## D9. Interactive modes beyond the brief
@@ -123,3 +123,35 @@ brief's planner only lets a user pick one of three preset students and read the 
 `reasoning/advisor.py` and the `ui/` package, plus tests `tests/test_trace.py` and
 `tests/test_advisor.py`. `run_plan` gains an optional `observer` argument; the
 behaviour is identical without it, and a test enforces this.
+
+## D10. A hand-written web front end instead of Streamlit
+
+**Why:** the brief asks for a Streamlit UI. Streamlit reruns the whole script on every
+interaction, so the D9 features felt sluggish. Ticking a course, stepping the search or
+pressing Play each caused a full rerun, and the Graphviz trees were static images. The
+course's example project (SearchLab) is a plain HTML/CSS/JS app, and the user chose to
+follow that model.
+
+**Decision:** replace only the presentation layer.
+- `domain/`, `db/` and `reasoning/` are unchanged, and so are all their tests.
+- `api/` (FastAPI) exposes the engine as JSON and serves the front end.
+- `web/` holds the front end: no framework, no build step, no CDN, and graphs drawn as
+  inline SVG.
+- `app.py`, `ui/` and the `streamlit` dependency are removed.
+- `make run` now starts uvicorn on port 8000.
+
+**Kept from the brief:**
+- SQLite persistence with the same schema
+- every required feature: plan, rule log, search stats and comparison, prerequisite
+  graph, save/load/delete
+- no LLM and no network calls; the browser only talks to the local server
+- a one-command launch
+
+**Trade-off:**
+- This departs from the brief's named framework. A grader who checks for `streamlit run
+  app.py` will not find it; the README and this page explain why.
+- The interface gains real interactivity: live re-planning, click-to-explain, a client-side
+  replay with an animated tree, and a clickable prerequisite DAG.
+- The project gains a second language (JavaScript), covered by its own unit tests.
+- The server is stateless and never trusts the browser with a rule decision, so the
+  engine's tests still cover everything the UI shows.

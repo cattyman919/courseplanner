@@ -2,7 +2,6 @@
 
 ```text
 courseplanner/
-  app.py                 Streamlit UI: mode switch, AI planner sidebar + 6 tabs
   domain/
     models.py            frozen dataclasses: Course, StudentProfile, PlanState,
                          RuleResult, PlanResult
@@ -20,10 +19,15 @@ courseplanner/
     explain.py           rule-log builder + summariser
     trace.py             event recording for step-by-step replay
     advisor.py           rule checks for student-chosen terms
-  ui/
-    builder.py           "Build my plan" mode
-    search_view.py       "Watch the Search" tab
-  tests/                 pytest, one file per layer
+  api/
+    server.py            FastAPI app: JSON endpoints, serves web/ at /
+    serialize.py         dataclasses -> JSON-ready dicts
+  web/
+    index.html           single page; views are filled in by JS
+    css/style.css
+    js/                  app.js router, api.js fetch wrapper, util.js DOM helpers,
+                         layout.js pure layout/replay helpers, one module per view
+  tests/                 pytest, one file per layer; tests/web/*.mjs for node --test
   docs/                  these notes
 ```
 
@@ -41,11 +45,12 @@ domain/catalog.py, profiles.py
         └────────────────────  PlanResult  ◄────────────────┘
                                    │
                                    ▼
-                              app.py tabs
+                     api/serialize.py → JSON → web/js views
 ```
 
 SQLite is the persistence layer; the reasoning engine only ever sees in-memory dataclasses.
-The app loads the catalog and profiles once and caches them.
+The API loads the catalog and profiles once at startup and caches plan and trace results
+in memory (`functools.lru_cache`), keyed on every input that can change them.
 
 ## Database
 
@@ -59,38 +64,56 @@ The app loads the catalog and profiles once and caches them.
 | `saved_plans` | one row per saved plan; `plan_json` holds semesters, start term, completed set, stats |
 | `rule_log` | one row per RuleResult of a saved plan; `ON DELETE CASCADE` from `saved_plans` |
 
-- `PRAGMA foreign_keys = ON` per connection; `check_same_thread=False` for Streamlit.
+- `PRAGMA foreign_keys = ON` per connection. The API opens a short-lived connection per
+  saved-plan request, so worker threads never share one.
 - `init_db()` raises a clear error on schema-version mismatch: delete the DB file to reset.
 - Join-table rows are read back in insertion order (`ORDER BY rowid`) so a `Course`
   round-trips exactly.
 - All SQL is parameterised; multi-row writes run inside `with conn:`.
 
-## Streamlit app (`app.py`)
+## Web app (`api/` + `web/`)
 
-| Part | Behaviour |
-|---|---|
-| Caching | `@st.cache_resource` DB connection (runs `init_db()` once); `@st.cache_data(ttl=600)` catalog and profiles; `@st.cache_data` `plan_for(profile, track, max_credits, algorithm, start_term)` |
-| Sidebar | scenario, target track (defaults to the profile's, reset per scenario), max credits 12–21, algorithm (default A\*), "Run all three algorithms" (default on), **Generate plan**, **Save plan** (disabled until a plan exists) |
-| Session state | `plan`, `profile_name`, `algorithm`, plus `params` (inputs behind the shown plan), `comparison`, `confirm_delete`, `flash` (one-shot success message) |
-| Semester Plan | summary from `summarize`, one column per term (wraps every 4), course cards with code, title, credits, slots; red `missing prereq` badge from `inserted_prereqs`; total terms/credits footer; `st.error` + pruned list when infeasible |
-| Rule & Inference Log | `#`, Rule, Subject, OK, Detail; Rule multiselect and OK filter; "Show only pruned courses" expander |
-| Search Stats | expanded / generated / ms / cost metrics; comparison table across BFS, UCS, A\* |
-| Saved Plans | `list_saved_plans` table (never cached), single-row selection → preview (terms, credits, cost, log size); **Load** restores the plan, the sidebar widgets, and jumps to Semester Plan; **Delete** asks for confirmation, then `delete_saved_plan` + rerun |
-| Prerequisite Graph | DOT via `st.graphviz_chart`; a "Current term" slider recolours nodes: green completed (before that term), yellow that term, blue planned later, grey unmet; dashed = not required for the track |
+The server is stateless and the browser holds all UI state. Each request carries
+everything the engine needs, for example the builder's committed terms and current picks.
+The browser never evaluates a rule. Every verdict, cost, label and search event comes from
+the Python engine, so the tests on `reasoning/` also cover what the user sees.
 
-The plan only changes when **Generate plan** is pressed; if sidebar inputs differ from the
-shown plan, a caption says so.
+### Endpoints (`api/server.py`)
 
-**Callbacks, not `if st.button(...)`:** Generate, Save, and Load run as `on_click`
-callbacks, which Streamlit executes *before* the script. That way the page — including the
-sidebar's Save button, drawn above the main area — already sees the new plan on the same
-run. (With an inline `if st.button` the Save button stayed disabled for one run after
-generating.) Sidebar widgets are keyed (`scenario`, `track_<profile>`, `max_credits`,
-`algo`, `compare`) and seeded with `setdefault`, so Load can set them; tabs use
-`key="tab", on_change="rerun"` so Load can switch to the plan tab.
+| Endpoint | Calls | Returns |
+|---|---|---|
+| `GET /api/catalog`, `GET /api/profiles` | `repo.load_catalog`, `repo.load_profiles` | the knowledge base |
+| `POST /api/plan` {profile, track, max_credits, algorithm, compare} | `run_plan`, `required_courses_for` | labelled terms, rule log (with parsed `missing` prereqs), stats, `inserted` catch-up courses, top-pruned, optional all-algorithm comparison |
+| `POST /api/trace` {same} | `trace_search` | nodes (id, parent, depth, term, combo, g, h), events (kind, node, text, frontier, closed, and the `status` the event gives its node), solution path, expansions per algorithm |
+| `POST /api/builder/check` {student, terms, picks} | `state_after`, `course_verdict`, `check_term`, `available_now`, `progress` | a verdict for every remaining course, the term check, term labels, progress |
+| `POST /api/builder/suggest` {student, terms, algorithm} | `suggest_rest` | the remaining plan, labelled from the current term |
+| `GET/POST /api/plans`, `GET/DELETE /api/plans/{id}` | `repo.save_plan` / `list_saved_plans` / `load_saved_plan` / `delete_saved_plan` | saved plans. Saving re-runs the plan on the server, so the browser can't store a forged plan. |
 
-**Saving:** the plan on screen is saved with the inputs that produced it (`params`), not
-the current sidebar values. A loaded plan has no comparison table; regenerate for one.
+Validation uses pydantic: algorithm and track must be known values and max credits must
+be 12–21. Unknown profiles or course codes get a 422. `create_app(db_path)` builds the app
+against any SQLite file, and the tests use a temporary one.
+
+### Front end (`web/`)
+
+No framework, no build step, no CDN: ES modules served by the same FastAPI app.
+`util.js` builds DOM and SVG elements and always sets text with `textContent`. `app.js`
+loads the catalog and profiles, then routes on the URL hash (`#planner`, `#build`,
+`#watch`, `#graph`, `#saved`). Views share a small context object with an event bus:
+- `plan`: the planner shows a new plan, and the graph recolours.
+- `saved`: the saved-plans list refreshes.
+- `load-saved`: the planner shows a stored plan.
+
+| View | Module | Interaction |
+|---|---|---|
+| AI planner | `planner.js` | Settings re-plan live, and a sequence counter drops stale responses. Terms are cards. Clicking a course opens "Why this course?" with every log row about it. The rule log has per-rule toggle chips and a text filter. A bar chart compares the three algorithms. |
+| Build my plan | `builder.js` | Course cards grouped Required / Electives / Not needed. Each click POSTs to `/api/builder/check` and re-renders. Hover highlights missing prerequisites. Commit, Skip, Undo (restores that term's picks), AI pick / plan the rest / Accept. Setup collapses and locks after the first commit. |
+| Watch the search | `watch.js` | Fetches one trace, then replays it entirely in the browser. Reset / Back / Step / Play with speed / Run to end, a scrubber, and ← → space Home End. On each step `layout.js` lays out only the nodes visible so far, so the tree stays compact, and nodes slide to their new positions. Follow scrolls the tree box (never the page) to the current node. Click a node for g/h/f and its path. |
+| Prerequisite graph | `graph.js` | Layered DAG by prerequisite depth, coloured by the planned term. Hover or click lights up the prerequisite closure (amber) and the unlock closure (blue) and fades the rest. |
+| Saved plans | `saved.js` | Table from SQLite. Load emits `load-saved`; Delete needs a second, confirming click. |
+
+`layout.js` has no DOM code: `replay` mirrors `reasoning.trace.statuses_at`, and
+`layoutTree`, `layoutDag`, `prereqDepth` and `closure` are pure. `tests/web/test_layout.mjs`
+covers them with `node --test`.
 
 ## Reasoning pipeline
 
@@ -204,21 +227,7 @@ observer the search is unchanged. Every node gets an integer id (start = 0).
 frontier, current, expanded, skipped, stale, limit, goal or path. Tests check that a
 traced run returns exactly the same plan and expansion count as an untraced run.
 
-### Watch the Search tab (`ui/search_view.py`)
-
-- **Controls:** ⏮ Reset, ◀ Back, Step ▶, ▶ Play / ⏸ Pause, ⏭ Run to end. Play uses
-  `st.fragment(run_every=0.6)`, so only the viewer reruns while playing.
-- **Shown at each step:**
-  - metrics: step, expanded so far, frontier size, explored (closed) size
-  - the current event, highlighted
-  - the 12 most recent events as a process log
-  - the tree as Graphviz DOT, left to right. Node labels give id, term, courses and g,
-    plus h and f for A\*.
-- **At the end:** the solution path is drawn in green, and the number of states each
-  algorithm expanded is compared.
-- **Reset:** changing the algorithm or regenerating the plan resets the replay.
-
-### Build my plan (`reasoning/advisor.py`, `ui/builder.py`)
+### Advisor rules for Build my plan (`reasoning/advisor.py`)
 
 | Piece | Behaviour |
 |---|---|
@@ -227,9 +236,6 @@ traced run returns exactly the same plan and expansion count as an untraced run.
 | `check_term` | per-course verdicts plus `check_schedule` (CONFLICT, CREDIT_CAP); `can_commit` iff at least one pick and no blocking rule |
 | `available_now` | what the planner itself would consider (eligible ∧ needed) |
 | `suggest_rest` | `run_plan` from the student's current state (start term shifted to the current term) |
-| Picker | every not-yet-completed course, grouped Required / Electives / Other, with an icon and a short reason (e.g. "needs CS301") |
-| AI help | **Pick this term for me** ticks the first term of the optimal plan; **Plan the rest for me** shows the remaining plan with **Accept** |
-| Progress | committed-term timeline, required courses left, elective credits, success message at the goal |
+| `progress` | required courses left, elective credits have/need, goal reached |
 
-Checkbox state is keyed `pick_<term>_<code>`, so **Undo last term** brings that term's
-picks back.
+The UI for these rules is described under [Front end](#front-end-web).
