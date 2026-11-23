@@ -14,3 +14,9 @@ courseplanner.db-journal
 .DS_Store
 .idea/
 .vscode/
+
+# Generated media (rebuild with `make demo-video`; slides live outside git)
+presentation/
+demo/output/
+*.mp4
+*.pptx
