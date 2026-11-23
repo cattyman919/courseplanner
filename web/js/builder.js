@@ -3,7 +3,9 @@
 // pick a term or plan the rest from wherever the student is.
 
 import { api } from "./api.js";
-import { ALGORITHMS, RULE_ICON, TRACKS, clear, h, keepFocus, segmented, toast } from "./util.js";
+import {
+  ALGORITHMS, RULE_ICON, TRACKS, announce, clear, h, keepFocus, segmented, toast,
+} from "./util.js";
 
 const BLANK = "__blank__";
 const GROUPS = [["required", "Required for your track"], ["elective", "Electives"],
@@ -36,36 +38,59 @@ export function init(ctx, root) {
     terms: st.terms, picks: [...st.picks].sort(), algorithm: st.algo,
   });
 
-  async function refresh() {
+  async function refresh(said = null) {
     const mine = ++seq;
     try {
       const data = await api.check(body());
       if (mine !== seq) return;
       st.data = data;
       render();
+      if (said !== null) announce(summary(data, said));
     } catch (err) {
       toast(err.message, "error");
     }
   }
 
-  const change = (fn) => (...args) => { fn(...args); refresh(); };
+  // Every user action re-checks with the rule engine and then announces the outcome;
+  // `said` is the short description of the action itself (e.g. "Committed Fall 2026.").
+  const change = (fn, said = "") => (...args) => {
+    const text = typeof said === "function" ? said(...args) : said;
+    fn(...args);
+    refresh(text);
+  };
+
+  /** One sentence for screen readers: what happened and what the rules now say. */
+  function summary(data, said) {
+    if (data.progress.done) return `${said} Every requirement is met.`.trim();
+    const c = data.check;
+    const problems = [...Object.entries(c.per_course).filter(([, r]) => !r.ok)
+      .map(([code, r]) => `${code}: ${r.rule}, ${r.detail}`),
+    ...c.schedule.map((r) => `${r.rule}: ${r.subject}, ${r.detail}`)];
+    const picks = Object.keys(c.per_course);
+    return [said, `${data.term_label}: ${picks.length ? picks.join(", ") : "nothing"} picked,`
+      + ` ${c.credits} of ${c.max_credits} credits.`,
+    problems.length ? `${problems.join(". ")}.` : "",
+    c.can_commit ? "You can commit this term." : picks.length ? "Commit is blocked." : ""]
+      .filter(Boolean).join(" ");
+  }
 
   const togglePick = change((code) => {
     st.picks.has(code) ? st.picks.delete(code) : st.picks.add(code);
-  });
+  }, (code) => `${st.picks.has(code) ? "Removed" : "Picked"} ${code}.`);
   const commit = change(() => {
     st.terms = [...st.terms, [...st.picks].sort()];
     st.picks = new Set();
     st.suggestion = null;
     st.setupOpen = false;
-  });
-  const skip = change(() => { st.terms = [...st.terms, []]; st.suggestion = null; });
+  }, () => `Committed ${st.data.term_label}.`);
+  const skip = change(() => { st.terms = [...st.terms, []]; st.suggestion = null; },
+    () => `Skipped ${st.data.term_label}.`);
   const undo = change(() => {
     const last = st.terms.at(-1) || [];
     st.terms = st.terms.slice(0, -1);
     st.picks = new Set(last);
     st.suggestion = null;
-  });
+  }, "Undid the last term; its courses are picked again.");
 
   async function askAI(rest) {
     try {
@@ -79,7 +104,9 @@ export function init(ctx, root) {
       } else {
         toast(plan.infeasible || "Nothing left to plan.", "error");
       }
-      refresh();
+      refresh(rest && plan.terms.length ? `${plan.algorithm_name} suggests `
+        + `${plan.terms.length} more terms: ${plan.terms.map((t) => `${t.label} `
+        + `${t.courses.join(", ")}`).join("; ")}.` : null);
     } catch (err) {
       toast(err.message, "error");
     }
@@ -90,7 +117,7 @@ export function init(ctx, root) {
     st.picks = new Set();
     st.suggestion = null;
     st.setupOpen = false;
-  });
+  }, "Accepted the AI's plan.");
 
   // --- rendering --------------------------------------------------------------------
 

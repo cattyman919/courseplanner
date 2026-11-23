@@ -118,3 +118,15 @@ export function pressable(el, label, onPress) {
   });
   return el;
 }
+
+/** Tell screen-reader users what changed, without moving focus (see #announcer). */
+export function announce(message) {
+  const el = document.getElementById("announcer");
+  if (!el) return;
+  el.textContent = "";
+  // Set it on the next frame so the same message twice in a row is still read out.
+  requestAnimationFrame(() => { el.textContent = message; });
+}
+
+/** True when the user asked the OS to reduce motion. */
+export const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;

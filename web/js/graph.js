@@ -3,7 +3,7 @@
 // chain of prerequisites it needs and the courses it unlocks.
 
 import { closure, layoutDag } from "./layout.js";
-import { clear, h, keepFocus, pressable, svg } from "./util.js";
+import { announce, clear, h, keepFocus, pressable, svg } from "./util.js";
 
 const NODE_W = 150;
 const NODE_H = 44;
@@ -65,6 +65,12 @@ export function init(ctx, root) {
     pressable(g, `${c.code} ${c.title}`, () => {
       selected = selected === c.code ? null : c.code;
       paint();
+      if (selected) {
+        const up = [...closure(c.code, prereqs)].sort();
+        const down = [...closure(c.code, unlocks)].sort();
+        announce(`${c.code} selected. Needs first: ${up.join(", ") || "nothing"}. `
+          + `Unlocks: ${down.join(", ") || "nothing"}.`);
+      }
     });
     nodes.append(g);
     nodeEls.set(c.code, { g, tag });

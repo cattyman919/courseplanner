@@ -489,3 +489,15 @@ table.saved .actions { display: flex; gap: 6px; justify-content: flex-end; }
   .progress-row { grid-template-columns: 1fr; }
   .speed { margin-left: 0; width: 100%; }
 }
+
+/* ---------------------------- reduced motion ----------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .course-card:hover, .course-card.needed { transform: none; }
+}

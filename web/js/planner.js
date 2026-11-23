@@ -3,7 +3,7 @@
 
 import { api } from "./api.js";
 import {
-  ALGORITHMS, RULE_ICON, TRACKS, clear, fmt, h, keepFocus, segmented, stat, toast,
+  ALGORITHMS, RULE_ICON, TRACKS, announce, clear, fmt, h, keepFocus, segmented, stat, toast,
 } from "./util.js";
 
 const RULES = ["OK", "PREREQ", "OFFERING", "CONFLICT", "PRUNED", "CREDIT_CAP", "INFEASIBLE"];
@@ -95,6 +95,7 @@ export function init(ctx, root) {
       const plan = await api.plan({ ...ctx.params, compare: true });
       if (mine !== seq) return;
       show(plan);
+      if (mine > 1) announce(headline(plan));
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -113,6 +114,13 @@ export function init(ctx, root) {
       renderLog(plan);
     }, els.why);
     ctx.emit("plan", plan);
+  }
+
+  function headline(plan) {
+    if (!plan.terms.length) return `No plan found. ${plan.infeasible || ""}`;
+    return `${plan.algorithm_name} plan for ${ctx.params.profile}: ${plan.terms.length} terms, `
+      + `${plan.total_credits} credits, cost ${fmt(plan.stats.cost)}, `
+      + `${plan.stats.expanded} states expanded.`;
   }
 
   function renderSummary(plan) {
@@ -143,7 +151,11 @@ export function init(ctx, root) {
       class: `course-chip cat-${c.category}${selected === code ? " selected" : ""}`,
       dataset: { key: `chip:${code}` }, "aria-pressed": selected === code ? "true" : "false",
       title: `${c.title} · ${c.credits} cr · prereqs: ${c.prereqs.join(", ") || "none"}`,
-      onclick: () => { selected = selected === code ? null : code; show(ctx.plan); },
+      onclick: () => {
+        selected = selected === code ? null : code;
+        show(ctx.plan);
+        if (selected) announce(`Showing why ${code} is planned where it is. See "Why this course?".`);
+      },
       ...extra },
     h("b", { text: code }), h("span", { text: c.title }), h("i", { text: `${c.credits}` }));
   }

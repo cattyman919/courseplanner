@@ -4,7 +4,8 @@
 import { api } from "./api.js";
 import { replay, layoutTree } from "./layout.js";
 import {
-  ALGORITHMS, clear, fmt, h, keepFocus, pressable, segmented, stat, svg, toast,
+  ALGORITHMS, announce, clear, fmt, h, keepFocus, pressable, reducedMotion, segmented, stat, svg,
+  toast,
 } from "./util.js";
 
 const KIND_ICON = { start: "🟦", expand: "🔶", push: "➕", duplicate: "✂️", worse: "✂️",
@@ -269,7 +270,7 @@ export function init(ctx, root) {
     if (left >= view.l + margin && right <= view.r - margin && top >= view.t + margin
       && bottom <= view.b - margin) return;
     scroller.scrollTo({ left: (left + right - scroller.clientWidth) / 2,
-      top: (top + bottom - scroller.clientHeight) / 2, behavior: st.playing ? "auto" : "smooth" });
+      top: (top + bottom - scroller.clientHeight) / 2, behavior: st.playing || reducedMotion() ? "auto" : "smooth" });
   }
 
   function renderDetail(status) {
@@ -305,6 +306,9 @@ export function init(ctx, root) {
   function select(id) {
     st.selected = id;
     paint();
+    const n = st.trace.byId.get(id);
+    announce(`Selected node ${id}: ${n.title}. g ${fmt(n.g)}`
+      + `${n.h !== null ? `, h ${fmt(n.h)}, f ${fmt(n.g + n.h)}` : ""}.`);
   }
 
   // --- playback ---------------------------------------------------------------------
@@ -315,6 +319,19 @@ export function init(ctx, root) {
     st.step = Math.max(0, Math.min(last, step));
     if (st.step === last) stop();
     paint();
+    // Manual steps are read out; while playing only the end is, so it doesn't chatter.
+    announce(st.step === last ? finalText() : `Step ${st.step + 1} of ${last + 1}. `
+      + st.trace.events[st.step].text);
+  }
+
+  function finalText() {
+    const t = st.trace;
+    if (t.goal_node === null) return t.events.at(-1).text;
+    const others = ALGORITHMS.filter(([a]) => a !== t.algorithm)
+      .map(([a, name]) => `${name} ${t.expanded_by_algorithm[a]}`).join(", ");
+    return `${t.algorithm_name} found a ${t.plan.terms.length}-term plan, cost `
+      + `${fmt(t.plan.stats.cost)}, after expanding ${t.plan.stats.expanded} states. `
+      + `The other algorithms expanded: ${others}.`;
   }
 
   function play() {
@@ -323,6 +340,7 @@ export function init(ctx, root) {
       if (st.step >= st.trace.events.length - 1) { stop(); paint(); return; }
       st.step += 1;
       paint();
+      if (st.step === st.trace.events.length - 1) announce(finalText());
     }, st.delay);
     paint();
   }
