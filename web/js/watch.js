@@ -10,8 +10,8 @@ import {
 const KIND_ICON = { start: "🟦", expand: "🔶", push: "➕", duplicate: "✂️", worse: "✂️",
   stale: "♻️", limit: "⛔", goal: "🎯", exhausted: "❌" };
 const SKIPPED = new Set(["skipped", "stale", "limit"]);
-const NODE_W = 172;
-const NODE_H = 46;
+const NODE_W = 212;
+const NODE_H = 54;
 
 export function init(ctx, root) {
   const params = { ...ctx.params, max_credits: 12 };
@@ -144,10 +144,10 @@ export function init(ctx, root) {
       svg("title", { text: `${n.title}\ng = ${fmt(n.g)}`
         + `${n.h !== null ? `, h = ${fmt(n.h)}` : ""}` }),
       svg("rect", { width: NODE_W, height: NODE_H, rx: 8 }),
-      svg("text", { x: 8, y: 14, class: "t1", text: `#${n.id} ${n.parent === null ? "Start"
+      svg("text", { x: 9, y: 17, class: "t1", text: `#${n.id} ${n.parent === null ? "Start"
         : n.term}` }),
-      svg("text", { x: 8, y: 28, class: "t2", text: line2 }),
-      svg("text", { x: 8, y: 41, class: "t3", text: `g=${fmt(n.g)}${f}` }));
+      svg("text", { x: 9, y: 33, class: "t2", text: line2 }),
+      svg("text", { x: 9, y: 48, class: "t3", text: `g=${fmt(n.g)}${f}` }));
       pressable(g, `Node ${n.id}: ${n.title}, g ${fmt(n.g)}`
         + `${n.h !== null ? `, h ${fmt(n.h)}` : ""}`, () => select(n.id));
       nodes.append(g);

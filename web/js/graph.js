@@ -5,11 +5,12 @@
 import { closure, layoutDag } from "./layout.js";
 import { clear, h, keepFocus, pressable, svg } from "./util.js";
 
-const NODE_W = 132;
-const NODE_H = 40;
+const NODE_W = 150;
+const NODE_H = 44;
 const PAD = 16;
-const TERM_COLORS = ["#2f5fd0", "#0f8a7a", "#8b5cf6", "#d97706", "#c0392b", "#0e7490",
-  "#a21caf", "#4d7c0f"];
+// Dark enough that the "T1" tag text passes 4.5:1 on its own tinted node.
+const TERM_COLORS = ["#2d5bc8", "#0d7769", "#784fd4", "#9e5704", "#be382b", "#0e728d",
+  "#a21caf", "#49760e"];
 
 export function init(ctx, root) {
   const prereqs = (code) => ctx.byCode.get(code)?.prereqs.filter((p) => ctx.byCode.has(p)) || [];
@@ -47,7 +48,7 @@ export function init(ctx, root) {
   const nodes = svg("g", { class: "nodes" });
   for (const c of ctx.catalog) {
     const p = pos.get(c.code);
-    const tag = svg("text", { x: NODE_W - 8, y: 16, class: "tag", "text-anchor": "end" });
+    const tag = svg("text", { x: NODE_W - 8, y: 18, class: "tag", "text-anchor": "end" });
     const g = svg("g", { class: "gnode", transform: `translate(${p.x + PAD},${p.y + PAD})`,
       onclick: () => { selected = selected === c.code ? null : c.code; paint(); },
       onfocus: () => { hovered = c.code; paint(); },
@@ -57,8 +58,8 @@ export function init(ctx, root) {
     svg("title", { text: `${c.code} · ${c.title}` }),
     svg("rect", { width: NODE_W, height: NODE_H, rx: 9 }),
     svg("rect", { class: "stripe", width: 5, height: NODE_H, rx: 2 }),
-    svg("text", { x: 12, y: 16, class: "code", text: c.code }),
-    svg("text", { x: 12, y: 31, class: "name",
+    svg("text", { x: 12, y: 18, class: "code", text: c.code }),
+    svg("text", { x: 12, y: 35, class: "name",
       text: c.title.length > 19 ? `${c.title.slice(0, 18)}…` : c.title }),
     tag);
     pressable(g, `${c.code} ${c.title}`, () => {
@@ -104,7 +105,7 @@ export function init(ctx, root) {
       let state = "unneeded";
       let color = "#b8b2a6";
       tag.textContent = "";
-      if (done.has(code)) { state = "done"; color = "#1f8a4c"; tag.textContent = "✓"; }
+      if (done.has(code)) { state = "done"; color = "#1a7440"; tag.textContent = "✓"; }
       else if (term.has(code)) {
         state = "planned";
         color = TERM_COLORS[term.get(code) % TERM_COLORS.length];
@@ -125,7 +126,7 @@ export function init(ctx, root) {
     const terms = plan?.terms || [];
     clear(legend,
       h("span", {}, h("i", { class: "sw", style: { background: "#def3e5",
-        borderColor: "#1f8a4c" } }), "completed"),
+        borderColor: "#1a7440" } }), "completed"),
       terms.map((t, i) => h("span", {}, h("i", { class: "sw", style: {
         background: TERM_COLORS[i % TERM_COLORS.length],
         borderColor: TERM_COLORS[i % TERM_COLORS.length] } }), `T${i + 1} ${t.label}`)),
