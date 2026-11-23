@@ -3,7 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from api.server import create_app
+from api.server import create_app, db_path_from_env
 from domain.catalog import CATALOG
 from domain.profiles import PROFILES
 from reasoning.search import run_plan
@@ -126,3 +126,13 @@ def test_bad_plan_requests_are_rejected(client, body):
 def test_unknown_course_is_rejected(client):
     body = {"student": student(completed=["XX999"]), "picks": []}
     assert client.post("/api/builder/check", json=body).status_code == 422
+
+
+def test_database_path_can_be_overridden(monkeypatch, tmp_path):
+    monkeypatch.delenv("COURSEPLANNER_DB", raising=False)
+    assert db_path_from_env() is None
+    target = tmp_path / "other.db"
+    monkeypatch.setenv("COURSEPLANNER_DB", str(target))
+    assert db_path_from_env() == target
+    create_app(db_path_from_env())
+    assert target.exists()

@@ -5,6 +5,7 @@ browser sends the student's committed terms with each request and the Python rul
 answers. Nothing here calls the network.
 """
 
+import os
 from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
@@ -241,4 +242,10 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
+def db_path_from_env() -> Path | None:
+    """COURSEPLANNER_DB points the app at another SQLite file (the demo video uses its own)."""
+    value = os.environ.get("COURSEPLANNER_DB")
+    return Path(value) if value else None
+
+
+app = create_app(db_path_from_env())
