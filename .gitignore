@@ -15,8 +15,8 @@ courseplanner.db-journal
 .idea/
 .vscode/
 
-# Generated media (rebuild with `make demo-video`; slides live outside git)
+# Demo video tooling and generated media (kept locally, not in git)
 presentation/
-demo/output/
+demo/
 *.mp4
 *.pptx

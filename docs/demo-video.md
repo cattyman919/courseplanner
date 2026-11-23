@@ -1,5 +1,7 @@
 # Demo video
 
+> The `demo/` folder is kept locally and is not tracked in git.
+
 `make demo-video` records and renders `demo/output/coursepath-demo.mp4`. It is about 4 minutes
 long, 1080p at 60 fps, with an offline voice, burned-in captions and a toggleable subtitle
 track. Setup, files and iteration tips are in [demo/README.md](../demo/README.md). The design
