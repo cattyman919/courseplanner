@@ -28,6 +28,8 @@
 | — | UI review fixes: keyboard, focus | done | `fix(web): keep keyboard focus and make every control keyboard-operable` |
 | — | UI review fixes: contrast, text size | done | `fix(web): raise text contrast to 4.5:1 and set a 12px minimum size` |
 | — | UI review fixes: motion, screen readers | done | `fix(web): respect reduced motion and announce results to screen readers` |
+| — | DB path override for the demo (D11) | done | `feat(api): allow overriding the database path via COURSEPLANNER_DB` |
+| — | Narrated demo video pipeline (D11) | done | `feat(demo): add narrated demo video pipeline with playwright-recast and kokoro` |
 
 ## Acceptance criteria (§15)
 

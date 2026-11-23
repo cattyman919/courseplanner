@@ -103,7 +103,7 @@ the search growing instead (A\* 4 → 26 expansions for On-track).
 
 Four additional commits, all new (never amended): a Makefile (user request), a ruff lint
 fix, pinning ruff as a dev dependency, and the initial `docs/` folder (user request). Final
-history: 15 commits for the brief, followed by the commits for D9 and D10. The spec's §17 "chore: add dependencies"
+history: 15 commits for the brief, followed by the commits for D9, D10 and D11. The spec's §17 "chore: add dependencies"
 step was folded into commit 1. Commits carry no `Co-Authored-By` trailer.
 
 ## D9. Interactive modes beyond the brief
@@ -155,3 +155,25 @@ follow that model.
 - The project gains a second language (JavaScript), covered by its own unit tests.
 - The server is stateless and never trusts the browser with a rule decision, so the
   engine's tests still cover everything the UI shows.
+
+## D11. A scripted, narrated demo video (`demo/`)
+
+**Why:** the user wanted a 3–5 minute demo video with smooth zooms on each click, a
+visible cursor, captions and spoken narration. It should rebuild whenever the UI changes
+rather than be screen-recorded by hand.
+
+**Decision:**
+- **playwright-recast (MIT)** for the video work. It renders a Playwright trace and video
+  into an MP4 with auto-zoom, a cursor overlay, click ripples, subtitles and voiceover.
+- **Node tooling, kept in `demo/`.** recast's narration and zoom markers only work in
+  `@playwright/test` traces, so this part is TypeScript, isolated in `demo/` with its own
+  `package.json`. The Python app and its tests don't depend on it.
+- **Offline voice.** recast's built-in TTS providers are all cloud services. Its
+  `TtsProvider` interface accepts a custom provider, so `demo/kokoro-provider.ts` runs
+  Kokoro (Apache-2.0 model, kokoro-onnx MIT) locally through `uv run`. There are no API
+  keys and no network use after the one-time model download.
+- **Separate database.** The recording uses its own throwaway SQLite file through
+  `COURSEPLANNER_DB`, so saving and deleting plans on camera never touches the user's
+  `courseplanner.db`.
+- **Nothing large is committed.** The rendered video, the recordings and the voice model
+  are all git-ignored.

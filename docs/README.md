@@ -10,4 +10,5 @@ project is built the way it is.
 | [architecture.md](architecture.md) | Module layout, data flow, database schema, API endpoints, front end, reasoning pipeline |
 | [catalog.md](catalog.md) | The course catalog, graduation rules, and the three demo profiles |
 | [development.md](development.md) | Setup, Makefile targets, testing, linting, git workflow |
+| [demo-video.md](demo-video.md) | How the narrated demo video is built and how to edit it |
 | [progress.md](progress.md) | Milestone status and commit log |

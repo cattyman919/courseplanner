@@ -285,4 +285,5 @@ Documentation beyond this README:
   interprets the brief
 - [docs/architecture.md](docs/architecture.md): modules, schema, API endpoints, front-end
   wiring, measured search results
+- [docs/demo-video.md](docs/demo-video.md): the narrated demo video (`make demo-video`)
 - [docs/progress.md](docs/progress.md): milestone status
