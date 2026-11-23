@@ -109,6 +109,7 @@ def test_saved_plan_round_trip(client):
     assert plan_id in [p["id"] for p in client.get("/api/plans").json()]
     loaded = client.get(f"/api/plans/{plan_id}").json()
     assert loaded["plan"]["terms"] == plan(client).json()["terms"]
+    assert loaded["plan"]["profile"]["name"] == "On-track" and loaded["plan"]["required"]
     assert client.delete(f"/api/plans/{plan_id}").status_code == 204
     assert client.get(f"/api/plans/{plan_id}").status_code == 404
 

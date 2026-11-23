@@ -211,8 +211,15 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             stats=meta.get("stats") or {"expanded": meta["expanded"], "generated": 0,
                                         "ms": meta["elapsed_ms"], "cost": meta["cost"]},
             algorithm=meta["algorithm"])
-        return {"meta": {k: v for k, v in meta.items() if k != "stats"},
-                "plan": serialize.plan(result, meta.get("start_term", "fall"))}
+        out = serialize.plan(result, meta.get("start_term", "fall"))
+        student = StudentProfile(meta["profile_name"], frozenset(meta.get("completed", [])),
+                                 meta["target_track"], meta["max_credits"],
+                                 meta.get("start_term", "fall"))
+        if meta["profile_name"] in profiles:
+            student = replace(profiles[meta["profile_name"]], target_track=meta["target_track"])
+        out["profile"] = serialize.profile(student)
+        out["required"] = sorted(required_courses_for(student, catalog))
+        return {"meta": {k: v for k, v in meta.items() if k != "stats"}, "plan": out}
 
     @app.delete("/api/plans/{plan_id}", status_code=204)
     def delete(plan_id: int) -> None:

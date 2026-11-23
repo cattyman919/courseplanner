@@ -6,11 +6,15 @@ import { clear, h, toast } from "./util.js";
 import * as planner from "./planner.js";
 import * as builder from "./builder.js";
 import * as watch from "./watch.js";
+import * as graph from "./graph.js";
+import * as saved from "./saved.js";
 
 const VIEWS = [
   ["planner", "AI planner", planner],
   ["build", "Build my plan", builder],
   ["watch", "Watch the search", watch],
+  ["graph", "Prerequisite graph", graph],
+  ["saved", "Saved plans", saved],
 ];
 
 function bus() {
