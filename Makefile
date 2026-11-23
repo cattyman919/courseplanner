@@ -1,4 +1,4 @@
-.PHONY: help install run test lint reset-db clean
+.PHONY: help install run serve test test-web lint reset-db clean
 .DEFAULT_GOAL := help
 
 help: ## Show available targets
@@ -10,8 +10,16 @@ install: ## Install dependencies with uv
 run: install ## Launch the Streamlit app (creates and seeds the DB on first run)
 	uv run streamlit run app.py
 
-test: ## Run the test suite
+serve: install ## Launch the web app at http://localhost:8000 (FastAPI + HTML/JS)
+	@echo "CoursePath: http://localhost:8000"
+	uv run uvicorn api.server:app --port 8000
+
+test: ## Run the Python and JavaScript test suites
 	uv run pytest -q
+	@command -v node >/dev/null && $(MAKE) --no-print-directory test-web || echo "node not found; skipped JS tests"
+
+test-web: ## Run the front-end unit tests (needs Node.js 18+)
+	node --test tests/web/*.mjs
 
 lint: ## Lint with ruff
 	uv run ruff check .

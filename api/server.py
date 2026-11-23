@@ -157,6 +157,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         return {
             "term_index": state.term_index,
             "term_label": term_label(student.start_term, state.term_index),
+            "term_labels": [term_label(student.start_term, i) for i in range(len(req.terms))],
             "courses": courses,
             "check": serialize.term_check(check),
             "available": [c.code for c in available_now(state, student, catalog)],

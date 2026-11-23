@@ -96,7 +96,7 @@ def test_builder_commit_flow_and_suggest(client):
     first = check(client, ["CS101", "MATH101"])
     assert first["check"]["can_commit"] and first["term_label"] == "Fall 2026"
     after = check(client, [], terms=[["CS101", "MATH101"]])
-    assert after["term_label"] == "Spring 2027"
+    assert after["term_label"] == "Spring 2027" and after["term_labels"] == ["Fall 2026"]
     assert "CS101" not in {c["code"] for c in after["courses"]}
     body = {"student": student(), "terms": [["CS101", "MATH101"]], "algorithm": "astar"}
     rest = client.post("/api/builder/suggest", json=body).json()
