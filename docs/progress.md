@@ -45,6 +45,6 @@
 | Save → appears → load restores → delete removes | ✅ (API tests + headless Chromium) |
 | `uv run pytest -q` passes, including DB tests | ✅ 181 Python tests + 8 JS tests |
 | Conventional-commit history, one per milestone | ✅ 11 milestones + 4 support commits (D8) |
-| `git status` clean; `.venv/`, `__pycache__/`, DB untracked | ✅ |
+| `git status` clean; `.venv/`, `__pycache__/`, DB, demo video and `presentation/` untracked | ✅ |
 | No network calls, no LLM calls, no remote DB | ✅ |
 | README demo script matches actual app behaviour | ✅ numbers checked against the API and in the browser |
