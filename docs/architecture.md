@@ -111,6 +111,26 @@ loads the catalog and profiles, then routes on the URL hash (`#planner`, `#build
 | Prerequisite graph | `graph.js` | Layered DAG by prerequisite depth, coloured by the planned term. Hover or click lights up the prerequisite closure (amber) and the unlock closure (blue) and fades the rest. |
 | Saved plans | `saved.js` | Table from SQLite. Load emits `load-saved`; Delete needs a second, confirming click. |
 
+### Accessibility
+
+A UI review against the ui-ux-pro-max guidelines on 2026-11-23 led to these rules:
+
+- **Keyboard:** every control is a `<button>` or has `role="button"`, `tabindex="0"` and
+  Enter/Space handling (`util.pressable`), which covers search-tree and graph nodes. Views
+  that redraw wrap the redraw in `util.keepFocus`, which puts focus back on the same
+  control (matched by `data-key`/`data-code`) or on the next heading.
+- **Focus:** one global `:focus-visible` ring, a 3px accent outline. SVG nodes get a dark
+  stroke instead.
+- **Contrast and size:** every text colour reaches at least 4.5:1 on the backgrounds it
+  sits on, and no text is smaller than 12px. Graph term colours are dark enough for their
+  `T1` tags.
+- **State:** toggles expose `aria-pressed`, and the current log step has
+  `aria-current="step"`.
+- **Screen readers:** a persistent `#announcer` live region (`util.announce`) reads out each
+  builder action with the rule verdicts, each new plan's headline, manual search steps,
+  the final result (but not every step during Play), and graph selections.
+- **Motion:** `prefers-reduced-motion` turns off transitions and smooth scrolling.
+
 `layout.js` has no DOM code: `replay` mirrors `reasoning.trace.statuses_at`, and
 `layoutTree`, `layoutDag`, `prereqDepth` and `closure` are pure. `tests/web/test_layout.mjs`
 covers them with `node --test`.

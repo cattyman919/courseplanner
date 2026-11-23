@@ -25,6 +25,9 @@
 | — | Graph + saved plans views (D10) | done | `feat(web): add interactive prerequisite graph and saved plans view` |
 | — | Remove Streamlit (D10) | done | `refactor: remove Streamlit UI in favour of the web front end` |
 | — | Docs for the web app | done | `docs: document the web app and the move away from Streamlit` |
+| — | UI review fixes: keyboard, focus | done | `fix(web): keep keyboard focus and make every control keyboard-operable` |
+| — | UI review fixes: contrast, text size | done | `fix(web): raise text contrast to 4.5:1 and set a 12px minimum size` |
+| — | UI review fixes: motion, screen readers | done | `fix(web): respect reduced motion and announce results to screen readers` |
 
 ## Acceptance criteria (§15)
 
